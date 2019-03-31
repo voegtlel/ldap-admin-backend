@@ -1,0 +1,441 @@
+
+ldap:
+  serverUri: 'ldap://192.168.56.101'
+  #serverUri: 'ldap://localhost:10389'
+  bindDn: 'cn=useradmin,ou=services,dc=jdav-freiburg,dc=de'
+  bindPassword: 'HaeCoth8muPhepheiphi'
+  timeout: 5.0
+
+  prefix: 'dc=jdav-freiburg,dc=de'
+
+
+# All views, each view defines how it is accessed and which properties are visible/editable/generated/...
+views:
+  users:
+    dn: 'ou=users'
+    primaryKey: uid
+    permissions: ['isAdmin']
+    classes:
+      - 'inetOrgPerson'
+      - 'simpleSecurityObject'
+    title: "Users"
+    iconClasses: "fa fa-user"
+    description: "Manage users"
+
+    # These properties are shown in a list of all users
+    list:
+      uid:
+        type: text
+        title: "User ID"
+      givenName:
+        type: text
+        title: "Given name"
+      sn:
+        type: text
+        title: "Surname"
+      mail:
+        type: text
+        title: "E-Mail"
+      mobile:
+        type: text
+        title: "Mobile"
+      isAdmin:
+        type: isMemberOf
+        title: "Admin"
+        foreignView: groups
+        memberOf: 'admin'
+      isSuperuser:
+        type: isMemberOf
+        title: "Superuser"
+        foreignView: groups
+        memberOf: 'superuser'
+      isNew:
+        type: isMemberOf
+        title: "New User"
+        foreignView: groups
+        memberOf: 'new'
+
+    # These properties are editable for single users
+    details:
+      user:
+        type: fields
+        title: "User"
+        fields:
+          uid:
+            type: text
+            title: "User ID"
+            format: '^[0-9a-zA-Z_-]+$'
+            writable: false
+            required: true
+          cn:
+            type: generate
+            title: "Common Name"
+            format: '{uid}'
+            readable: false
+          givenName:
+            type: text
+            title: "Given name"
+            format: '^[\p{L} ]+$'
+            required: true
+          sn:
+            type: text
+            title: "Surname"
+            format: '^[\p{L} ]+$'
+            required: true
+          displayName:
+            type: generate
+            title: "Display Name"
+            format: '{givenName} {sn}'
+            readable: false
+          mail:
+            type: text
+            title: "E-Mail"
+            format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            required: true
+          mobile:
+            type: text
+            title: "Mobile"
+            format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            required: true
+          isAdmin:
+            type: isMemberOf
+            title: "Admin"
+            foreignView: groups
+            memberOf: 'admin'
+          isSuperuser:
+            type: isMemberOf
+            title: "Superuser"
+            foreignView: groups
+            memberOf: 'superuser'
+          isNew:
+            type: isMemberOf
+            title: "New User"
+            foreignView: groups
+            memberOf: 'new'
+      password:
+        type: fields
+        title: "Password"
+        fields:
+          userPassword:
+            title: "Password"
+            readable: false
+            verify: true
+            type: password
+            hashing: salted_sha1
+            required: true
+      memberOfGroups:
+        type: memberOf
+        title: "Member of groups"
+        foreignView: groups
+      memberOfServices:
+        type: memberOf
+        title: "Member of services"
+        foreignView: services
+
+    # This defines how a user edits itself
+    self:
+      user:
+        type: fields
+        title: "User"
+        fields:
+          uid:
+            type: text
+            title: "User ID"
+            writable: false
+          givenName:
+            type: text
+            title: "Given name"
+            format: '^[\p{L} ]+$'
+            required: true
+          sn:
+            type: text
+            title: "Surname"
+            format: '^[\p{L} ]+$'
+            required: true
+          displayName:
+            type: generate
+            title: "Display Name"
+            format: '{givenName} {sn}'
+            readable: false
+          mail:
+            type: text
+            title: "E-Mail"
+            format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            required: true
+          mobile:
+            type: text
+            title: "Mobile"
+            format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            required: true
+      password:
+        type: fields
+        title: "Password"
+        fields:
+          userPassword:
+            title: "Password"
+            readable: false
+            verify: true
+            type: password
+            hashing: salted_sha1
+            required: true
+      memberOfGroups:
+        type: memberOf
+        title: "Member of groups"
+        foreignView: groups
+      memberOfServices:
+        type: memberOf
+        title: "Member of services"
+        foreignView: services
+
+    # This defines how a user can register
+    register:
+      user:
+        type: fields
+        title: "User"
+        fields:
+          uid:
+            type: text
+            title: "User ID"
+            format: '^[0-9a-zA-Z_-]+$'
+            writable: false
+            required: true
+          cn:
+            type: generate
+            title: "Common Name"
+            format: '{uid}'
+            readable: false
+          givenName:
+            type: text
+            title: "Given name"
+            format: '^[\p{L} ]+$'
+            required: true
+          sn:
+            type: text
+            title: "Surname"
+            format: '^[\p{L} ]+$'
+            required: true
+          displayName:
+            type: generate
+            title: "Display Name"
+            format: '{givenName} {sn}'
+            readable: false
+          mail:
+            type: text
+            title: "E-Mail"
+            format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            required: true
+          mobile:
+            type: text
+            title: "Mobile"
+            format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            required: true
+          new:
+            type: initial
+            title: "Assign new user group"
+            value: true
+            target:
+              key: isNew
+              type: isMemberOf
+              title: "Assign new user group"
+              foreignView: groups
+              memberOf: 'new'
+      password:
+        type: fields
+        title: "Password"
+        fields:
+          userPassword:
+            title: "Password"
+            readable: false
+            verify: true
+            type: password
+            hashing: salted_sha1
+            required: true
+
+    # These properties are fetched for the authenticated user.
+    auth:
+      # Used for referencing the current user
+      primaryKey:
+        type: text
+        field: uid
+        title: "User ID"
+      # Used for displaying the name
+      displayName:
+        type: text
+        field: displayName
+        title: "Display Name"
+      # Used for "mail"
+      mail:
+        type: text
+        field: mail
+        title: "E-Mail"
+      # Permissions
+      isAdmin:
+        type: isMemberOf
+        title: "Admin"
+        foreignView: groups
+        memberOf: 'admin'
+      isSuperuser:
+        type: isMemberOf
+        title: "Superuser"
+        foreignView: groups
+        memberOf: 'superuser'
+      isNew:
+        type: isMemberOf
+        title: "New User"
+        foreignView: groups
+        memberOf: 'new'
+
+  services:
+    dn: 'ou=services'
+    primaryKey: cn
+    permissions: ['isSuperuser']
+    classes:
+      - 'groupOfNames'
+      - 'simpleSecurityObject'
+    title: "Services"
+    iconClasses: "fa fa-users"
+
+    # These properties are shown in a list of all services
+    list:
+      cn:
+        type: text
+        title: "Common Name"
+
+    # These properties are editable for single services
+    details:
+      service:
+        type: fields
+        title: "Service"
+        fields:
+          cn:
+            type: text
+            title: "Common Name"
+            format: '^[0-9a-zA-Z_-]+$'
+            writable: false
+          userPassword:
+            type: password
+            title: "Password"
+            hashing: plaintext
+            autoGenerate: true
+            verify: true
+      memberUsers:
+        type: member
+        title: "Member users"
+        foreignView: "users"
+      memberGroups:
+        type: member
+        title: "Member groups"
+        foreignView: "groups"
+      memberServices:
+        type: member
+        title: "Member services"
+        foreignView: "services"
+      memberOfGroups:
+        type: memberOf
+        title: "Member of groups"
+        foreignView: groups
+      memberOfServices:
+        type: memberOf
+        title: "Member of services"
+        foreignView: services
+  groups:
+    dn: 'ou=groups'
+    primaryKey: cn
+    permissions: ['isAdmin']
+    classes:
+      - 'groupOfNames'
+    title: "Groups"
+    iconClasses: "fa fa-user-secret"
+
+    # These properties are shown in a list of all groups
+    list:
+      cn:
+        type: text
+        title: "Common Name"
+
+    # These properties are editable for single groups
+    details:
+      group:
+        type: fields
+        title: "Group"
+        fields:
+          cn:
+            type: text
+            title: "Common Name"
+            format: '^[0-9a-zA-Z_-]+$'
+            writable: false
+      memberUsers:
+        type: member
+        title: "Member users"
+        foreignView: "users"
+      memberGroups:
+        type: member
+        title: "Member groups"
+        foreignView: "groups"
+      memberServices:
+        type: member
+        title: "Member services"
+        foreignView: "services"
+      memberOfGroups:
+        type: memberOf
+        title: "Member of groups"
+        foreignView: groups
+      memberOfServices:
+        type: memberOf
+        title: "Member of services"
+        foreignView: services
+  mailboxes:
+    dn: 'ou=mailboxes'
+    primaryKey: cn
+    permissions: ['isAdmin']
+    classes:
+      - 'groupOfNames'
+      # TODO: Add class for mail config here
+    title: "Mailboxes"
+    iconClasses: "fa fa-envelope"
+
+    # These properties are shown in a list of all groups
+    list:
+      cn:
+        type: text
+        title: "Common Name"
+
+    # These properties are editable for post drops
+    details:
+      group:
+        type: fields
+        title: "Mailbox"
+        fields:
+          cn:
+            type: text
+            title: "Common Name"
+            format: '^[0-9a-zA-Z_-]+$'
+            writable: false
+      memberUsers:
+        type: member
+        title: "Member users"
+        foreignView: "users"
+      memberGroups:
+        type: member
+        title: "Member groups"
+        foreignView: "groups"
+      memberServices:
+        type: member
+        title: "Member services"
+        foreignView: "services"
+
+auth:
+  secretKey: 2utq084nhg084qnhg943qjg3q9guwqg
+  headerPrefix: Bearer
+  #expiration: 60*60*24*30
+  expiration: 2592000
+  view: users
+
+  antiSpam:
+    questions:
+      - question: "Who created this User Management?"
+        answer: '^[lL]ukas$'
+      - question: "Who is current representative for JDAV?"
+        answer: '^[Mm]athieu'
+
+allowOrigins: ['http://localhost:4200']

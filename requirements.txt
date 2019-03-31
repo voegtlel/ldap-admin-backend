@@ -1,0 +1,8 @@
+falcon
+falcon_cors
+falcon-auth
+PyYAML
+python-ldap
+regex
+passlib
+oyaml
