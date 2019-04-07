@@ -293,6 +293,7 @@ views:
       - 'groupOfNames'
       - 'simpleSecurityObject'
     title: "Services"
+    description: "Manage services"
     iconClasses: "fa fa-users"
 
     # These properties are shown in a list of all services
@@ -345,6 +346,7 @@ views:
     classes:
       - 'groupOfNames'
     title: "Groups"
+    description: "Manage groups"
     iconClasses: "fa fa-user-secret"
 
     # These properties are shown in a list of all groups
@@ -392,6 +394,7 @@ views:
       - 'groupOfNames'
       # TODO: Add class for mail config here
     title: "Mailboxes"
+    description: "Manage mailboxes"
     iconClasses: "fa fa-envelope"
 
     # These properties are shown in a list of all groups
