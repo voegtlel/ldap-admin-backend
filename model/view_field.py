@@ -1,7 +1,7 @@
 import string
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Dict, Set, List, Any, Optional, Pattern, Callable
+from typing import Dict, Set, List, Any, Optional, Pattern, Callable, Iterable, cast
 
 import falcon
 import passlib.hash
@@ -291,7 +291,7 @@ class ViewFieldGenerate(ViewField):
         self.format: str = config.get('format')
         name_extractor = FieldNameExtractorFormatter()
         name_extractor.format(self.format)
-        self.input_field_names: List[str] = name_extractor.fields
+        self.input_field_names: Iterable[str] = name_extractor.fields
         self.input_fields: List[ViewField] = []
 
         self.config.update(OrderedDict([
@@ -329,6 +329,8 @@ class ViewFieldGenerate(ViewField):
         if self.key in assignments:
             raise falcon.HTTPBadRequest(description="Cannot assign value to generated field {}".format(self.key))
         if not self.writable:
+            return
+        if not any(field in assignments for field in self.input_field_names):
             return
         dn, fetch = fetches
         format_args: Dict[str, Any] = dict()
@@ -374,10 +376,10 @@ class ViewFieldIsMemberOf(ViewField):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
         self.member_of_name: str = config['memberOf']
-        self.member_of_dn: bytes = None
+        self.member_of_dn: bytes = cast(bytes, None)
         self.field: str = config.get('field', 'memberOf')
         self.foreign_view_name: str = config['foreignView']
-        self.foreign_view: 'model.view.View' = None
+        self.foreign_view: 'model.view.View' = cast('model.view.View', None)
         self.foreign_field: str = config.get('foreignField', 'member')
 
         self.config.update(OrderedDict([

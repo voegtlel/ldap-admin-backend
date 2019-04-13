@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import List, Set, Dict, Any, Union
+from typing import List, Set, Dict, Any, Union, cast
 
 from model.view_field import ViewField, view_field_types
 from model.db import LdapModlist, Mod, LdapSearchEntity, LdapAddlist
@@ -136,6 +136,10 @@ class ViewGroupFields(ViewGroup):
         for field in self.fields:
             field.set(fetches, modlist, assignments)
 
+    def set_post(self, fetches: LdapSearchEntity, assignments: Dict[str, Any], is_new: bool):
+        for field in self.fields:
+            field.set_post(fetches, assignments, is_new)
+
     def create(self, fetches: LdapSearchEntity, modlist: LdapAddlist, assignments: Dict[str, Any]):
         for field in self.fields:
             field.create(fetches, modlist, assignments)
@@ -145,7 +149,7 @@ class ViewGroupMemberOf(ViewGroup):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
         self.foreign_view_name: str = config['foreignView']
-        self.foreign_view: 'model.view.View' = None
+        self.foreign_view: 'model.view.View' = cast('model.view.View', None)
         self.field: str = config.get('field', 'memberOf')
         self.foreign_field: str = config.get('foreignField', 'member')
 
@@ -187,7 +191,7 @@ class ViewGroupMember(ViewGroup):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
         self.foreign_view_name = config['foreignView']
-        self.foreign_view: 'model.view.View' = None
+        self.foreign_view: 'model.view.View' = cast('model.view.View', None)
         self.field: str = config.get('field', 'member')
         self.foreign_field: str = config.get('foreignField', 'memberOf')
 
@@ -268,7 +272,9 @@ class ViewDetails:
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         for view in self.views:
-            view.set_fetch(fetches, assignments)
+            view_assignments = assignments.get(view.key)
+            if view_assignments is not None:
+                view.set_fetch(fetches, view_assignments)
 
     def set(
             self, fetches: LdapSearchEntity, modlist: LdapModlist,
