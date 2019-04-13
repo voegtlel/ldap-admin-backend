@@ -1,4 +1,12 @@
+<a href="https://cloud.docker.com/repository/docker/voegtlel/ldap-admin-backend/builds">
+  <img src="https://img.shields.io/docker/cloud/build/voegtlel/ldap-admin-backend.svg" alt="Docker build status" />
+</a>
+<img src="https://img.shields.io/github/license/voegtlel/ldap-admin-backend.svg" alt="License" />
+
 # Server for ldap admin
+
+This is the backend for [ldap-admin-frontend](https://github.com/voegtlel/ldap-admin-frontend).
+See [ldap-admin-frontend](https://github.com/voegtlel/ldap-admin-frontend) for more documentation.
 
 ## Development server
 
@@ -7,13 +15,3 @@ Run `python run.py` for a dev server.
 ## Deployment server
 
 Use a WGSI server and import `server.app`.
-
-## Docker
-
-Run `docker build`.
-
-## Configuration
-
-You can override any config variable by setting the environment variable `api_config_<variable_name>`.
-E.g.: `API_CONFIG_LDAP_SERVERURI=ldap://myldapserver:389` (casing of the variable is ignored).
-
