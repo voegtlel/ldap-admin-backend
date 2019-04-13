@@ -5,6 +5,18 @@ from typing import Any, Dict, Union, List
 import oyaml as yaml
 
 
+def camelcase_to_underscore(camelcase: str) -> str:
+    res = ''
+    last_was_upper = True
+    for i in range(len(camelcase)):
+        if camelcase[i].isupper() and not last_was_upper:
+            res += '_' + camelcase[i].lower()
+        else:
+            res += camelcase[i]
+            last_was_upper = False
+    return res
+
+
 class Config:
     def __init__(self, name: List[str], config_: Dict[str, Any]):
         self._name = name
@@ -22,17 +34,25 @@ class Config:
     @classmethod
     def _assign_key(cls, cfg: Dict[str, Union[dict, Any]], key: str, value: Any, self_path: str):
         found_key = None
+        found_key_underscore = None
         first_part = key.split('_', 1)[0]
         for cfg_key in cfg.keys():
-            if cfg_key.startswith(first_part):
-                if key.startswith(cfg_key):
+            cfg_key_underscore = camelcase_to_underscore(cfg_key)
+            if cfg_key_underscore.startswith(first_part):
+                if key.startswith(cfg_key_underscore):
                     found_key = cfg_key
+                    found_key_underscore = cfg_key_underscore
         if found_key is None:
             raise ValueError("Cannot find {} in {}".format(key, self_path))
-        if found_key == key:
+        if found_key_underscore == key:
             cfg[found_key] = value
         else:
-            cls._assign_key(cfg[found_key], key[len(found_key)+1:], value, self_path + '_' + found_key)
+            cls._assign_key(
+                cfg[found_key],
+                key[len(found_key_underscore)+1:],
+                value,
+                self_path + '_' + found_key_underscore
+            )
 
     @classmethod
     def load(cls, config_file='config.yaml', env_prefix='api_config_'):
