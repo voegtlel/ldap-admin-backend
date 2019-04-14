@@ -150,7 +150,9 @@ class ViewFieldText(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
 
         if not self.format.fullmatch(assignments[self.key]):
-            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(assignments[self.key], self.key, self.format))
+            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
+                assignments[self.key], self.key, self.format
+            ))
 
         dn, fetch = fetches
         value = assignments[self.key].encode()
@@ -176,12 +178,14 @@ class ViewFieldText(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot create {}".format(self.key))
 
         if not self.format.fullmatch(assignments[self.key]):
-            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(assignments[self.key], self.key, self.format))
+            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
+                assignments[self.key], self.key, self.format
+            ))
 
         dn, fetch = fetches
         value = assignments[self.key].encode()
         if self.field in fetch:
-            raise falcon.HTTPBadRequest("Cannot modify value")
+            raise falcon.HTTPBadRequest(description="Cannot modify value")
         if not value and self.required:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
         addlist.append((self.field, [value]))
@@ -429,12 +433,12 @@ class ViewFieldIsMemberOf(ViewField):
 
         if assignments[self.key]:
             self.foreign_view.save_foreign_field(self.member_of_name, [(Mod.ADD, self.foreign_field, [dn.encode()])])
-            fetch[self.field].remove(self.member_of_dn)
+            fetch[self.field].append(self.member_of_dn)
         else:
             self.foreign_view.save_foreign_field(self.member_of_name, [(Mod.DELETE, self.foreign_field, [dn.encode()])])
             if self.field not in fetch:
                 fetch[self.field] = []
-            fetch[self.field].append(self.member_of_dn)
+            fetch[self.field].remove(self.member_of_dn)
 
 
 class ViewFieldInitial(ViewField):
