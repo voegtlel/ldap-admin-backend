@@ -1,7 +1,7 @@
 import string
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Dict, Set, List, Any, Optional, Pattern, Callable
+from typing import Dict, Set, List, Any, Optional, Pattern, Callable, Iterable, cast
 
 import falcon
 import passlib.hash
@@ -150,7 +150,9 @@ class ViewFieldText(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
 
         if not self.format.fullmatch(assignments[self.key]):
-            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(assignments[self.key], self.key, self.format))
+            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
+                assignments[self.key], self.key, self.format
+            ))
 
         dn, fetch = fetches
         value = assignments[self.key].encode()
@@ -176,12 +178,14 @@ class ViewFieldText(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot create {}".format(self.key))
 
         if not self.format.fullmatch(assignments[self.key]):
-            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(assignments[self.key], self.key, self.format))
+            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
+                assignments[self.key], self.key, self.format
+            ))
 
         dn, fetch = fetches
         value = assignments[self.key].encode()
         if self.field in fetch:
-            raise falcon.HTTPBadRequest("Cannot modify value")
+            raise falcon.HTTPBadRequest(description="Cannot modify value")
         if not value and self.required:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
         addlist.append((self.field, [value]))
@@ -291,7 +295,7 @@ class ViewFieldGenerate(ViewField):
         self.format: str = config.get('format')
         name_extractor = FieldNameExtractorFormatter()
         name_extractor.format(self.format)
-        self.input_field_names: List[str] = name_extractor.fields
+        self.input_field_names: Iterable[str] = name_extractor.fields
         self.input_fields: List[ViewField] = []
 
         self.config.update(OrderedDict([
@@ -324,11 +328,14 @@ class ViewFieldGenerate(ViewField):
         if any(field in assignments for field in self.input_field_names):
             for input_field in self.input_fields:
                 input_field.get_fetch(fetches)
+            fetches.add(self.field)
 
     def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
         if self.key in assignments:
             raise falcon.HTTPBadRequest(description="Cannot assign value to generated field {}".format(self.key))
         if not self.writable:
+            return
+        if not any(field in assignments for field in self.input_field_names):
             return
         dn, fetch = fetches
         format_args: Dict[str, Any] = dict()
@@ -374,10 +381,10 @@ class ViewFieldIsMemberOf(ViewField):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
         self.member_of_name: str = config['memberOf']
-        self.member_of_dn: bytes = None
+        self.member_of_dn: bytes = cast(bytes, None)
         self.field: str = config.get('field', 'memberOf')
         self.foreign_view_name: str = config['foreignView']
-        self.foreign_view: 'model.view.View' = None
+        self.foreign_view: 'model.view.View' = cast('model.view.View', None)
         self.foreign_field: str = config.get('foreignField', 'member')
 
         self.config.update(OrderedDict([
@@ -426,12 +433,12 @@ class ViewFieldIsMemberOf(ViewField):
 
         if assignments[self.key]:
             self.foreign_view.save_foreign_field(self.member_of_name, [(Mod.ADD, self.foreign_field, [dn.encode()])])
-            fetch[self.field].remove(self.member_of_dn)
+            fetch[self.field].append(self.member_of_dn)
         else:
             self.foreign_view.save_foreign_field(self.member_of_name, [(Mod.DELETE, self.foreign_field, [dn.encode()])])
             if self.field not in fetch:
                 fetch[self.field] = []
-            fetch[self.field].append(self.member_of_dn)
+            fetch[self.field].remove(self.member_of_dn)
 
 
 class ViewFieldInitial(ViewField):

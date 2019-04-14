@@ -26,15 +26,8 @@ class Scope(Enum):
 
 
 class LdapError(falcon.HTTPBadRequest):
-    def __init__(self, error_type, error_message):
-        super(LdapError, self).__init__(description=error_message)
-        self.error_type = error_type
-        self.error_message = error_message
-
-    def to_dict(self, obj_type=dict):
-        obj = obj_type()
-        obj['error'] = {'ldap': {'type': self.error_type, 'message': self.error_message}}
-        return obj
+    def __init__(self, error_type: str, error_message: str):
+        super(LdapError, self).__init__(description="{} ({})".format(error_message, error_type))
 
 
 class Database:

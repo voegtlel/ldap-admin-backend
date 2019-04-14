@@ -2,6 +2,7 @@ from collections import OrderedDict
 from typing import Dict, List, Set, Any, Optional, Union
 
 from model.db import Database, Scope, LdapModlist, LdapAddlist
+from model.http_helper import HTTPBadRequestField
 from model.view_details import ViewDetails
 from model.view_list import ViewList
 
@@ -98,12 +99,12 @@ class View:
             self._register_view.init(all_views)
 
     def _create(self, view: ViewDetails, assignments: Dict[str, Dict[str, Any]]):
-        primary_key: str = None
+        primary_key: Optional[str] = None
         for value in assignments.values():
             if self._primary_key in value:
                 primary_key = value[self._primary_key]
         if not primary_key:
-            raise falcon.HTTPBadRequest(description="Missing primary key in assignments")
+            raise HTTPBadRequestField(description="Missing primary key in assignments", field=self._primary_key)
         addlist: LdapAddlist = [('objectClass', self._classes)]
         dn = self.get_dn(primary_key)
         view.create((dn, dict()), addlist, assignments)
@@ -190,13 +191,15 @@ class View:
 
     def get_primary_key(self, dn: str) -> str:
         if not dn.startswith(self._dn_prefix) or not dn.endswith(self._dn_suffix):
-            raise falcon.HTTPBadRequest(
-                description="Invalid dn {}, expected {}pk{}".format(dn, self._dn_prefix, self._dn_suffix)
+            raise HTTPBadRequestField(
+                description="Invalid dn {}, expected {}pk{}".format(dn, self._dn_prefix, self._dn_suffix),
+                field=self._primary_key
             )
         pk = dn[len(self._dn_prefix):-len(self._dn_suffix)]
         if '=' in pk:
-            raise falcon.HTTPBadRequest(
-                description="Invalid dn {}, expected {}pk{}".format(dn, self._dn_prefix, self._dn_suffix)
+            raise HTTPBadRequestField(
+                description="Invalid dn {}, expected {}pk{}".format(dn, self._dn_prefix, self._dn_suffix),
+                field=self._primary_key
             )
         return pk
 
