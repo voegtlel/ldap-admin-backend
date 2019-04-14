@@ -324,6 +324,7 @@ class ViewFieldGenerate(ViewField):
         if any(field in assignments for field in self.input_field_names):
             for input_field in self.input_fields:
                 input_field.get_fetch(fetches)
+            fetches.add(self.field)
 
     def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
         if self.key in assignments:
