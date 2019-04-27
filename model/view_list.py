@@ -2,7 +2,7 @@ from collections import OrderedDict
 from typing import List, Set, Dict, Any
 
 from model.view_field import ViewField, view_field_types
-from model.db import LdapSearchEntity
+from model.db import LdapFetch
 import model
 
 
@@ -28,7 +28,7 @@ class ViewList:
         for field in self.fields:
             field.get_fetch(fetches)
 
-    def get(self, fetches: List[LdapSearchEntity]) -> List[Dict[str, Any]]:
+    def get(self, fetches: List[LdapFetch]) -> List[Dict[str, Any]]:
         results: List[Dict[str, Any]] = list()
         for entity in fetches:
             res: Dict[str, Any] = OrderedDict()

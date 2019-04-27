@@ -9,7 +9,7 @@ import passlib.pwd
 import regex
 
 import model
-from model.db import LdapModlist, LdapSearchEntity, Mod, LdapAddlist
+from model.db import LdapModlist, LdapMods, LdapAddlist, LdapFetch
 
 
 class ViewField(ABC):
@@ -54,7 +54,7 @@ class ViewField(ABC):
         ...
 
     @abstractmethod
-    def get(self, fetches: LdapSearchEntity, results: Dict[str, Any]):
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
         """
         Called to get the json value of the field.
 
@@ -75,7 +75,7 @@ class ViewField(ABC):
         """
         ...
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist,
+    def set(self, fetches: LdapFetch, modlist: LdapModlist,
             assignments: Dict[str, Any]):
         """
         Set the value of the field by updating the modlist.
@@ -87,7 +87,7 @@ class ViewField(ABC):
         """
         pass
 
-    def create(self, fetches: LdapSearchEntity, addlist: LdapAddlist,
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist,
                assignments: Dict[str, Any]):
         """
         Create the value of the field by updating the addlist.
@@ -99,7 +99,7 @@ class ViewField(ABC):
         """
         pass
 
-    def set_post(self, fetches: LdapSearchEntity, assignments: Dict[str, Any], is_new: bool):
+    def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         """
         Set external values.
 
@@ -127,12 +127,11 @@ class ViewFieldText(ViewField):
             return
         fetches.add(self.field)
 
-    def get(self, fetches: LdapSearchEntity, results: Dict[str, Any]):
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
         if not self.readable:
             return
-        dn, fetch = fetches
-        if self.field in fetch and len(fetch[self.field]) > 0:
-            results[self.key] = fetch[self.field][0].decode()
+        if self.field in fetches.values and len(fetches.values[self.field]) > 0:
+            results[self.key] = fetches.values[self.field][0]
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         if self.key not in assignments:
@@ -143,7 +142,7 @@ class ViewFieldText(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
         fetches.add(self.field)
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         if self.key not in assignments:
             return
         if not self.writable:
@@ -154,22 +153,21 @@ class ViewFieldText(ViewField):
                 assignments[self.key], self.key, self.format
             ))
 
-        dn, fetch = fetches
-        value = assignments[self.key].encode()
+        value = assignments[self.key]
         if not value:
             if self.required:
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
-            if self.field in fetch:
-                modlist.append((Mod.DELETE, self.key, None))
-        elif self.field in fetch:
-            fetch_val = fetch[self.field]
+            if self.field in fetches.values:
+                modlist[self.field] = [(LdapMods.DELETE, [])]
+        elif self.field in fetches.values:
+            fetch_val = fetches.values[self.field]
             if len(fetch_val) != 1 or fetch_val[0] != value:
-                modlist.append((Mod.REPLACE, self.field, [value]))
+                modlist[self.field] = [(LdapMods.REPLACE, [value])]
         else:
-            modlist.append((Mod.ADD, self.field, [value]))
-        fetch[self.field] = [value]
+            modlist[self.field] = [(LdapMods.ADD, [value])]
+        fetches.values[self.field] = [value]
 
-    def create(self, fetches: LdapSearchEntity, addlist: LdapAddlist, assignments: Dict[str, Any]):
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if self.key not in assignments:
             if self.required:
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -182,14 +180,13 @@ class ViewFieldText(ViewField):
                 assignments[self.key], self.key, self.format
             ))
 
-        dn, fetch = fetches
-        value = assignments[self.key].encode()
-        if self.field in fetch:
+        value = assignments[self.key]
+        if self.field in fetches.values:
             raise falcon.HTTPBadRequest(description="Cannot modify value")
         if not value and self.required:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
-        addlist.append((self.field, [value]))
-        fetch[self.field] = [value]
+        addlist[self.field] = [value]
+        fetches.values[self.field] = [value]
 
 
 class ViewFieldPassword(ViewField):
@@ -210,12 +207,11 @@ class ViewFieldPassword(ViewField):
             return
         fetches.add(self.field)
 
-    def get(self, fetches: LdapSearchEntity, results: Dict[str, Any]):
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
         if not self.readable:
             return
-        dn, fetch = fetches
-        if self.field in fetch and len(fetch[self.field]) > 0:
-            results[self.key] = fetch[self.field][0].decode()
+        if self.field in fetches.values and len(fetches.values[self.field]) > 0:
+            results[self.key] = fetches.values[self.field][0]
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         if self.key not in assignments:
@@ -226,7 +222,7 @@ class ViewFieldPassword(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
         fetches.add(self.field)
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         if self.key not in assignments:
             return
         if not self.writable:
@@ -235,22 +231,21 @@ class ViewFieldPassword(ViewField):
             str_value = passlib.pwd.genword('secure')
         else:
             str_value = assignments[self.key]
-        dn, fetch = fetches
-        value = self.hashing(str_value).encode()
+        value = self.hashing(str_value)
         if not value:
             if self.required:
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
-            if self.field in fetch:
-                modlist.append((Mod.DELETE, self.key, None))
-        elif self.field in fetch:
-            fetch_val = fetch[self.field]
+            if self.field in fetches.values:
+                modlist[self.field] = [(LdapMods.DELETE, [])]
+        elif self.field in fetches.values:
+            fetch_val = fetches.values[self.field]
             if len(fetch_val) != 1 or fetch_val[0] != value:
-                modlist.append((Mod.REPLACE, self.field, [value]))
+                modlist[self.field] = [(LdapMods.REPLACE, [value])]
         else:
-            modlist.append((Mod.ADD, self.field, [value]))
-        fetch[self.field] = [value]
+            modlist[self.field] = [(LdapMods.ADD, [value])]
+        fetches.values[self.field] = [value]
 
-    def create(self, fetches: LdapSearchEntity, addlist: LdapAddlist, assignments: Dict[str, Any]):
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if self.key not in assignments:
             if self.required:
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -262,14 +257,13 @@ class ViewFieldPassword(ViewField):
         else:
             str_value = assignments[self.key]
 
-        dn, fetch = fetches
-        value = self.hashing(str_value).encode()
-        if self.field in fetch:
+        value = self.hashing(str_value)
+        if self.field in fetches.values:
             raise falcon.HTTPBadRequest("Cannot modify value")
         if not value and self.required:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
-        addlist.append((self.field, [value]))
-        fetch[self.field] = [value]
+        addlist[self.field] = [value]
+        fetches.values[self.field] = [value]
 
 
 class FieldNameExtractorFormatter(string.Formatter):
@@ -313,12 +307,11 @@ class ViewFieldGenerate(ViewField):
             return
         fetches.add(self.field)
 
-    def get(self, fetches: LdapSearchEntity, results: Dict[str, Any]):
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
         if not self.readable:
             return
-        dn, fetch = fetches
-        if self.field in fetch and len(fetch[self.field]) > 0:
-            results[self.key] = fetch[self.field][0].decode()
+        if self.field in fetches.values and len(fetches.values[self.field]) > 0:
+            results[self.key] = fetches.values[self.field][0]
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         if self.key in assignments:
@@ -330,51 +323,51 @@ class ViewFieldGenerate(ViewField):
                 input_field.get_fetch(fetches)
             fetches.add(self.field)
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         if self.key in assignments:
             raise falcon.HTTPBadRequest(description="Cannot assign value to generated field {}".format(self.key))
         if not self.writable:
             return
         if not any(field in assignments for field in self.input_field_names):
             return
-        dn, fetch = fetches
+
         format_args: Dict[str, Any] = dict()
         for input_field in self.input_fields:
             if input_field.key in assignments:
                 format_args[input_field.key] = assignments[input_field.key]
             else:
                 input_field.get(fetches, format_args)
-        value = self.format.format(**format_args).encode()
+        value = self.format.format(**format_args)
         if not value:
-            if self.field in fetch:
-                modlist.append((Mod.DELETE, self.key, None))
-        elif self.field in fetch:
-            fetch_val = fetch[self.field]
+            if self.field in fetches.values:
+                modlist[self.field] = [(LdapMods.DELETE, [])]
+        elif self.field in fetches.values:
+            fetch_val = fetches.values[self.field]
             if len(fetch_val) != 1 or fetch_val[0] != value:
-                modlist.append((Mod.REPLACE, self.field, [value]))
+                modlist[self.field] = [(LdapMods.REPLACE, [value])]
         else:
-            modlist.append((Mod.ADD, self.field, [value]))
-        fetch[self.field] = [value]
+            modlist[self.field] = [(LdapMods.ADD, [value])]
+        fetches.values[self.field] = [value]
 
-    def create(self, fetches: LdapSearchEntity, addlist: LdapAddlist, assignments: Dict[str, Any]):
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if self.key in assignments:
             raise falcon.HTTPBadRequest(description="Cannot assign value to generated field {}".format(self.key))
         if not self.creatable:
             return
-        dn, fetch = fetches
+        
         format_args: Dict[str, Any] = dict()
         for input_field in self.input_fields:
             if input_field.key in assignments:
                 format_args[input_field.key] = assignments[input_field.key]
             else:
                 input_field.get(fetches, format_args)
-        value = self.format.format(**format_args).encode()
-        if self.field in fetch:
+        value = self.format.format(**format_args)
+        if self.field in fetches.values:
             raise falcon.HTTPBadRequest("Cannot modify value")
         if not value and self.required:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
-        addlist.append((self.field, [value]))
-        fetch[self.field] = [value]
+        addlist[self.field] = [value]
+        fetches.values[self.field] = [value]
 
 
 class ViewFieldIsMemberOf(ViewField):
@@ -396,18 +389,18 @@ class ViewFieldIsMemberOf(ViewField):
 
     def init(self, all_views: Dict[str, 'model.view.View'], all_fields: Dict[str, 'ViewField']):
         self.foreign_view = all_views[self.foreign_view_name]
-        self.member_of_dn = self.foreign_view.get_dn(self.member_of_name).encode()
+        self.member_of_dn = self.foreign_view.get_dn(self.member_of_name)
 
     def get_fetch(self, fetches: Set[str]):
         if not self.readable:
             return
         fetches.add(self.field)
 
-    def get(self, fetches: LdapSearchEntity, results: Dict[str, Any]):
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
         if not self.readable:
             return
-        dn, fetch = fetches
-        results[self.key] = self.member_of_dn in fetch.get(self.field, ())
+        
+        results[self.key] = self.member_of_dn in fetches.values.get(self.field, ())
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         if self.key not in assignments:
@@ -418,7 +411,7 @@ class ViewFieldIsMemberOf(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
         fetches.add(self.field)
 
-    def set_post(self, fetches: LdapSearchEntity, assignments: Dict[str, Any], is_new: bool):
+    def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         if self.key not in assignments:
             if is_new and self.required:
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -426,19 +419,22 @@ class ViewFieldIsMemberOf(ViewField):
         if not (is_new and self.creatable) and not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
 
-        dn, fetch = fetches
-        is_member = self.member_of_dn in fetch.get(self.field, ())
+        is_member = self.member_of_dn in fetches.values.get(self.field, ())
         if is_member == assignments[self.key]:
             return
 
         if assignments[self.key]:
-            self.foreign_view.save_foreign_field(self.member_of_name, [(Mod.ADD, self.foreign_field, [dn.encode()])])
-            fetch[self.field].append(self.member_of_dn)
+            self.foreign_view.save_foreign_field(self.member_of_name, {
+                self.foreign_field: [(LdapMods.ADD, [fetches.dn])]
+            })
+            fetches.values[self.field].append(self.member_of_dn)
         else:
-            self.foreign_view.save_foreign_field(self.member_of_name, [(Mod.DELETE, self.foreign_field, [dn.encode()])])
-            if self.field not in fetch:
-                fetch[self.field] = []
-            fetch[self.field].remove(self.member_of_dn)
+            self.foreign_view.save_foreign_field(self.member_of_name, {
+                self.foreign_field: [(LdapMods.DELETE, [fetches.dn])]
+            })
+            if self.field not in fetches.values:
+                fetches.values[self.field] = []
+            fetches.values[self.field].remove(self.member_of_dn)
 
 
 class ViewFieldInitial(ViewField):
@@ -459,22 +455,22 @@ class ViewFieldInitial(ViewField):
     def get_fetch(self, fetches: Set[str]):
         pass
 
-    def get(self, fetches: LdapSearchEntity, results: Dict[str, Any]):
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
         pass
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         pass
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         pass
 
-    def create(self, fetches: LdapSearchEntity, addlist: LdapAddlist, assignments: Dict[str, Any]):
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if assignments[self.key]:
             raise falcon.HTTPBadRequest("Cannot assign {}".format(self.key))
         assignments[self.target.key] = self.value
         self.target.create(fetches, addlist, assignments)
 
-    def set_post(self, fetches: LdapSearchEntity, assignments: Dict[str, Any], is_new: bool):
+    def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         if not is_new:
             pass
         if assignments[self.key]:

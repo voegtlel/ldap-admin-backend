@@ -3,7 +3,7 @@ from typing import Dict
 
 import falcon
 
-from model.db import Database
+from model.db import DatabaseFactory
 from model.view import View
 
 
@@ -85,7 +85,7 @@ class UserConfigApi:
 
 
 class ViewsApi:
-    def __init__(self, db: Database, config: dict):
+    def __init__(self, db: DatabaseFactory, config: dict):
         self.views = OrderedDict((key, View(db, key, view_cfg)) for key, view_cfg in config.items())
         for view in self.views.values():
             view.init(self.views)

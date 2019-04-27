@@ -1,8 +1,7 @@
 falcon
 falcon_cors
 falcon-auth
-PyYAML
-python-ldap
+ldap3
 regex
 passlib
 oyaml

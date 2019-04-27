@@ -4,7 +4,7 @@ from falcon_cors import CORS
 
 from config import config
 from model.auth import Auth
-from model.db import Database
+from model.db import DatabaseFactory
 from model.view_api import ViewsApi
 
 cors = CORS(
@@ -37,12 +37,12 @@ class MaxBody:
         if length is not None and length > self._max_size:
             msg = ('The size of the request is too large. The body must not '
                    'exceed ' + str(self._max_size) + ' bytes in length.')
-            raise falcon.HTTPRequestEntityTooLarge('Request body is too large', msg)
+            raise falcon.HTTPPayloadTooLarge('Request body is too large', msg)
 
 
-db = Database(config['ldap'])
-views = ViewsApi(db, config['views'])
-auth = Auth(views.views, db, config['auth'])
+db_factory = DatabaseFactory(config['ldap'])
+views = ViewsApi(db_factory, config['views'])
+auth = Auth(views.views, db_factory, config['auth'])
 
 app = falcon.API(
     middleware=[cors.middleware, auth.auth_middleware, RequireJSON(), MaxBody()],
