@@ -26,8 +26,11 @@ class Scope(Enum):
 
 
 class LdapError(falcon.HTTPBadRequest):
-    def __init__(self, error_type: str, error_message: str):
-        super(LdapError, self).__init__(description="{} ({})".format(error_message, error_type))
+    def __init__(self, original_error: ldap.LDAPError):
+        super(LdapError, self).__init__(
+            description="{} ({})".format(str(original_error), type(original_error).__name__)
+        )
+        self.original_error = original_error
 
 
 class Database:
@@ -55,7 +58,7 @@ class Database:
         try:
             self._ldap.add_s(dn, addlist)
         except ldap.LDAPError as e:
-            raise LdapError(type(e).__name__, str(e))
+            raise LdapError(e)
 
     def search(
             self, base: str, scope: Scope, filterstr: str = None, attrlist: List[str] = None
@@ -75,7 +78,7 @@ class Database:
         try:
             return self._ldap.search_s(base, scope.value, filterstr, attrlist)
         except ldap.LDAPError as e:
-            raise LdapError(type(e).__name__, str(e))
+            raise LdapError(e)
 
     def get(
             self, dn: str, attrlist: List[str] = None
@@ -107,7 +110,7 @@ class Database:
         try:
             self._ldap.modify_s(dn, self._get_modlist(modlist))
         except ldap.LDAPError as e:
-            raise LdapError(type(e).__name__, str(e))
+            raise LdapError(e)
 
     def delete(self, dn: str):
         """
@@ -118,7 +121,7 @@ class Database:
         try:
             self._ldap.delete_s(dn)
         except ldap.LDAPError as e:
-            raise LdapError(type(e).__name__, str(e))
+            raise LdapError(e)
 
     def escape_dn(self, s: str) -> str:
         """

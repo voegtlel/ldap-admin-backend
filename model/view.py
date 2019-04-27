@@ -1,7 +1,9 @@
 from collections import OrderedDict
 from typing import Dict, List, Set, Any, Optional, Union
 
-from model.db import Database, Scope, LdapModlist, LdapAddlist
+import ldap
+
+from model.db import Database, Scope, LdapModlist, LdapAddlist, LdapError
 from model.http_helper import HTTPBadRequestField
 from model.view_details import ViewDetails
 from model.view_list import ViewList
@@ -14,11 +16,12 @@ class View:
         config.update(overrides)
         self._key = key
         self._db = db
-        self._dn = config['dn'] + ',' + db.prefix
-        self._title = config['title']
-        self._primary_key = config['primaryKey']
-        self._permissions = config['permissions']
-        self._classes = [cls.encode() for cls in config['classes']]
+        self._dn: str = config['dn'] + ',' + db.prefix
+        self._title: str = config['title']
+        self._primary_key: str = config['primaryKey']
+        self._permissions: List[str] = config['permissions']
+        self._auto_create: Optional[Dict[str, Union[List[str], str]]] = config.get('autoCreate')
+        self._classes: List[bytes] = [cls.encode() for cls in config['objectClass']]
         self._list_view = ViewList(config['list'])
         self._detail_view = ViewDetails(config['details'])
         self._self_view: Optional[ViewDetails] = (
@@ -34,7 +37,7 @@ class View:
             if 'auth' in config else None
         )
 
-        self._class_filter = "(&" + "".join("(objectClass={})".format(cls) for cls in config['classes']) + ")"
+        self._class_filter = "(&" + "".join("(objectClass={})".format(cls) for cls in config['objectClass']) + ")"
         self._dn_prefix = self._primary_key + "="
         self._dn_suffix = "," + self._dn
 
@@ -66,6 +69,24 @@ class View:
             ])
         else:
             self._public_config = None
+
+        try:
+            self._db.search(self._dn, Scope.BASE, attrlist=[])
+        except LdapError as e:
+            if self._auto_create is not None and isinstance(e.original_error, ldap.NO_SUCH_OBJECT):
+                # Create the object
+                print("Adding '{}'".format(self._dn))
+                addlist: LdapAddlist = []
+                for key, value in self._auto_create.items():
+                    addlist.append(
+                        (key, [value.encode()] if isinstance(value, str) else [val.encode() for val in value])
+                    )
+                self._db.create(self._dn, addlist)
+                # Ensure the object exists now
+                self._db.search(self._dn, Scope.BASE, attrlist=[])
+            else:
+                raise ValueError("Self check failed: Missing '{}' in LDAP".format(self._dn))
+
 
     @property
     def user_config(self) -> dict:
