@@ -63,7 +63,9 @@ class Config:
             if lower_key.startswith(env_prefix):
                 lower_key = lower_key[len(env_prefix):]
 
-                cls._assign_key(config, lower_key, yaml.load(io.StringIO(env_val)), env_prefix[:-1])
+                cls._assign_key(
+                    config, lower_key, yaml.load(io.StringIO(env_val), Loader=yaml.SafeLoader), env_prefix[:-1]
+                )
         return Config(["({})".format(config_file)], config)
 
 
