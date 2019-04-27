@@ -4,7 +4,7 @@ ldap:
   #serverUri: 'ldap://localhost:10389'
   bindDn: 'cn=useradmin,ou=services,dc=jdav-freiburg,dc=de'
   bindPassword: 'HaeCoth8muPhepheiphi'
-  timeout: 5.0
+  timeout: 5
 
   prefix: 'dc=jdav-freiburg,dc=de'
 

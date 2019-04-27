@@ -51,7 +51,7 @@ class DatabaseFactory:
 
         self._server = ldap3.Server(config['serverUri'])
         self.prefix: str = config['prefix']
-        self._timeout: str = config['timeout']
+        self._timeout: int = int(config['timeout'])
 
         self._connection = self.connect(config['bindDn'], config['bindPassword'])
 
