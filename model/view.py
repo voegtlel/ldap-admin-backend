@@ -1,27 +1,28 @@
 from collections import OrderedDict
 from typing import Dict, List, Set, Any, Optional, Union
 
-import ldap
+import falcon
+import ldap3
+import ldap3.utils.dn
+from ldap3.core.exceptions import LDAPNoSuchObjectResult, LDAPExceptionError
 
-from model.db import Database, Scope, LdapModlist, LdapAddlist, LdapError
+from model.db import DatabaseFactory, FalconLdapError, LdapAddlist, LdapModlist, LdapFetch
 from model.http_helper import HTTPBadRequestField
 from model.view_details import ViewDetails
 from model.view_list import ViewList
 
-import falcon
-
 
 class View:
-    def __init__(self, db: Database, key: str, config: dict, **overrides):
+    def __init__(self, db: DatabaseFactory, key: str, config: dict, **overrides):
         config.update(overrides)
         self._key = key
-        self._db = db
+        self._db = db.connection
         self._dn: str = config['dn'] + ',' + db.prefix
         self._title: str = config['title']
         self._primary_key: str = config['primaryKey']
         self._permissions: List[str] = config['permissions']
         self._auto_create: Optional[Dict[str, Union[List[str], str]]] = config.get('autoCreate')
-        self._classes: List[bytes] = [cls.encode() for cls in config['objectClass']]
+        self._classes: List[bytes] = [cls for cls in config['objectClass']]
         self._list_view = ViewList(config['list'])
         self._detail_view = ViewDetails(config['details'])
         self._self_view: Optional[ViewDetails] = (
@@ -71,21 +72,16 @@ class View:
             self._public_config = None
 
         try:
-            self._db.search(self._dn, Scope.BASE, attrlist=[])
-        except LdapError as e:
-            if self._auto_create is not None and isinstance(e.original_error, ldap.NO_SUCH_OBJECT):
+            self._db.search(self._dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE)
+        except LDAPNoSuchObjectResult:
+            if self._auto_create is not None:
                 # Create the object
                 print("Adding '{}'".format(self._dn))
-                addlist: LdapAddlist = []
-                for key, value in self._auto_create.items():
-                    addlist.append(
-                        (key, [value.encode()] if isinstance(value, str) else [val.encode() for val in value])
-                    )
-                self._db.create(self._dn, addlist)
+                self._db.add(self._dn, attributes=self._auto_create)
                 # Ensure the object exists now
-                self._db.search(self._dn, Scope.BASE, attrlist=[])
+                self._db.search(self._dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE)
             else:
-                raise ValueError("Self check failed: Missing '{}' in LDAP".format(self._dn))
+                raise
 
 
     @property
@@ -126,36 +122,55 @@ class View:
                 primary_key = value[self._primary_key]
         if not primary_key:
             raise HTTPBadRequestField(description="Missing primary key in assignments", field=self._primary_key)
-        addlist: LdapAddlist = [('objectClass', self._classes)]
+        addlist: LdapAddlist = LdapAddlist({'objectClass': self._classes})
         dn = self.get_dn(primary_key)
-        view.create((dn, dict()), addlist, assignments)
-        self._db.create(dn, addlist)
-        view.set_post((dn, dict()), assignments, True)
+        view.create(LdapFetch(dn, {}), addlist, assignments)
+        try:
+            self._db.add(dn, attributes=addlist)
+        except LDAPExceptionError as e:
+            raise FalconLdapError(e)
+        view.set_post(LdapFetch(dn, {}), assignments, True)
 
     def _list(self, view: ViewList):
         fetches: Set[str] = set()
         view.get_fetch(fetches)
-        result = self._db.search(self._dn, Scope.ONELEVEL, self._class_filter, attrlist=list(fetches))
-        return view.get(result)
+        try:
+            self._db.search(self._dn, self._class_filter, search_scope=ldap3.LEVEL, attributes=list(fetches))
+            fetched = LdapFetch.from_entries(self._db.entries)
+        except LDAPExceptionError as e:
+            raise FalconLdapError(e)
+        return view.get(fetched)
 
     def _get_entry(self, view: Union[ViewList, ViewDetails], primary_key: str) -> Dict[str, Any]:
         fetches: Set[str] = set()
         view.get_fetch(fetches)
-        result = self._db.get(self.get_dn(primary_key), attrlist=list(fetches))
+        try:
+            self._db.search(self.get_dn(primary_key), "(objectClass=*)", search_scope=ldap3.BASE, attributes=list(fetches))
+            fetched = LdapFetch.from_entry(self._db.entries[0])
+        except LDAPExceptionError as e:
+            raise FalconLdapError(e)
         if isinstance(view, ViewList):
-            return view.get([result])[0]
+            return view.get([fetched])[0]
         elif isinstance(view, ViewDetails):
-            return view.get(result)
+            return view.get(fetched)
         raise ValueError("Invalid value for view: {}".format(view))
 
     def _update(self, view: ViewDetails, primary_key: str, assignments: Dict[str, Dict[str, Any]]):
         dn = self.get_dn(primary_key)
         fetches: Set[str] = set()
         view.set_fetch(fetches, assignments)
-        fetched = self._db.get(dn, list(fetches))
-        modlist: LdapModlist = []
+        try:
+            self._db.search(dn, "(objectClass=*)", search_scope=ldap3.BASE, attributes=list(fetches))
+            fetched = LdapFetch.from_entry(self._db.entries[0])
+        except LDAPExceptionError as e:
+            raise FalconLdapError(e)
+        modlist: LdapModlist = LdapModlist({})
         view.set(fetched, modlist, assignments)
-        self._db.update(dn, modlist)
+        if modlist:
+            try:
+                self._db.modify(dn, modlist)
+            except LDAPExceptionError as e:
+                raise FalconLdapError(e)
         view.set_post(fetched, assignments, False)
 
     def create_register(self, assignments: Dict[str, Dict[str, Any]]):
@@ -192,16 +207,23 @@ class View:
 
     def delete(self, user: Dict[str, Any], primary_key: str):
         self._check_permissions(user)
-        self._db.delete(self.get_dn(primary_key))
+        try:
+            self._db.delete(self.get_dn(primary_key))
+        except LDAPExceptionError as e:
+            raise FalconLdapError(e)
 
-    def save_foreign_field(self, primary_key: str, modlist: LdapModlist):
-        self._db.update(self.get_dn(primary_key), modlist)
+    def save_foreign_field(self, primary_key: str, modlist: Any):
+        if modlist:
+            try:
+                self._db.modify(self.get_dn(primary_key), modlist)
+            except LDAPExceptionError as e:
+                raise FalconLdapError(e)
 
     def get_dn(self, primary_key: str) -> str:
-        return self._primary_key + "=" + self._db.escape_dn(primary_key) + "," + self._dn
+        return self._primary_key + "=" + ldap3.utils.dn.escape_rdn(primary_key) + "," + self._dn
 
     def try_get_dn(self, primary_key: str) -> Optional[str]:
-        return self._primary_key + "=" + self._db.escape_dn(primary_key) + "," + self._dn
+        return self._primary_key + "=" + ldap3.utils.dn.escape_rdn(primary_key) + "," + self._dn
 
     def get_dns(self, primary_keys: List[str]) -> List[str]:
         return [self.get_dn(pk) for pk in primary_keys]

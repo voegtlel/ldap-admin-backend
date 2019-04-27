@@ -15,6 +15,8 @@ if __name__ == '__main__':
 
 
     class PythonConfigWatcher(watchgod.DefaultDirWatcher):
+        ignored_dirs = watchgod.DefaultDirWatcher.ignored_dirs | {'venv'}
+
         def should_watch_file(self, entry):
             return entry.name.endswith(('.py', '.pyx', '.pyd', '.yaml'))
 

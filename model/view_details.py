@@ -6,7 +6,7 @@ import falcon
 
 from model.http_helper import HTTPBadRequestField
 from model.view_field import ViewField, view_field_types
-from model.db import LdapModlist, Mod, LdapSearchEntity, LdapAddlist
+from model.db import LdapModlist, LdapAddlist, LdapMods, LdapFetch
 
 import model.view
 
@@ -44,7 +44,7 @@ class ViewGroup(ABC):
         ...
 
     @abstractmethod
-    def get(self, fetches: LdapSearchEntity) -> Union[Dict[str, Any], List[str]]:
+    def get(self, fetches: LdapFetch) -> Union[Dict[str, Any], List[str]]:
         """
         Called to get the json value of the field.
 
@@ -67,7 +67,7 @@ class ViewGroup(ABC):
         """
         ...
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         """
         Set the value of the field by updating the modlist.
 
@@ -78,7 +78,7 @@ class ViewGroup(ABC):
         """
         pass
 
-    def create(self, fetches: LdapSearchEntity, addlist: LdapAddlist, assignments: Dict[str, Any]):
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         """
         Set the value of the field by updating the addlist.
 
@@ -89,7 +89,7 @@ class ViewGroup(ABC):
         """
         pass
 
-    def set_post(self, fetches: LdapSearchEntity, assignments: Dict[str, Any], is_new: bool):
+    def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         """
         Sets external values if needed.
 
@@ -128,7 +128,7 @@ class ViewGroupFields(ViewGroup):
             except falcon.HTTPBadRequest as e:
                 raise HTTPBadRequestField(e.title, e.description, field.key)
 
-    def get(self, fetches: LdapSearchEntity) -> Dict[str, Any]:
+    def get(self, fetches: LdapFetch) -> Dict[str, Any]:
         res: Dict[str, Any] = OrderedDict()
         for field in self.fields:
             try:
@@ -144,21 +144,21 @@ class ViewGroupFields(ViewGroup):
             except falcon.HTTPBadRequest as e:
                 raise HTTPBadRequestField(e.title, e.description, field.key)
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         for field in self.fields:
             try:
                 field.set(fetches, modlist, assignments)
             except falcon.HTTPBadRequest as e:
                 raise HTTPBadRequestField(e.title, e.description, field.key)
 
-    def set_post(self, fetches: LdapSearchEntity, assignments: Dict[str, Any], is_new: bool):
+    def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         for field in self.fields:
             try:
                 field.set_post(fetches, assignments, is_new)
             except falcon.HTTPBadRequest as e:
                 raise HTTPBadRequestField(e.title, e.description, field.key)
 
-    def create(self, fetches: LdapSearchEntity, modlist: LdapAddlist, assignments: Dict[str, Any]):
+    def create(self, fetches: LdapFetch, modlist: LdapAddlist, assignments: Dict[str, Any]):
         for field in self.fields:
             try:
                 field.create(fetches, modlist, assignments)
@@ -186,26 +186,23 @@ class ViewGroupMemberOf(ViewGroup):
     def get_fetch(self, fetches: Set[str]):
         fetches.add(self.field)
 
-    def get(self, fetches: LdapSearchEntity) -> List[str]:
-        dn, fetch = fetches
-        if self.field not in fetch:
+    def get(self, fetches: LdapFetch) -> List[str]:
+        if self.field not in fetches.values:
             return []
-        return self.foreign_view.try_get_primary_keys([val.decode() for val in fetch[self.field]])
+        return self.foreign_view.try_get_primary_keys([val for val in fetches.values[self.field]])
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         pass
 
-    def set_post(self, fetches: LdapSearchEntity, assignments: Dict[str, Any], is_new: bool):
-        dn, fetch = fetches
-
+    def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         for add_ref in assignments.get('add', []):
-            self.foreign_view.save_foreign_field(add_ref, [
-                (Mod.ADD, self.foreign_field, [dn.encode()])
-            ])
+            self.foreign_view.save_foreign_field(add_ref, {
+                self.foreign_field: (LdapMods.ADD, [fetches.dn])
+            })
         for add_ref in assignments.get('delete', []):
-            self.foreign_view.save_foreign_field(add_ref, [
-                (Mod.DELETE, self.foreign_field, [dn.encode()])
-            ])
+            self.foreign_view.save_foreign_field(add_ref, {
+                self.foreign_field: (LdapMods.DELETE, [fetches.dn])
+            })
 
 
 class ViewGroupMember(ViewGroup):
@@ -228,37 +225,50 @@ class ViewGroupMember(ViewGroup):
     def get_fetch(self, fetches: Set[str]):
         fetches.add(self.field)
 
-    def get(self, fetches: LdapSearchEntity) -> List[str]:
-        dn, fetch = fetches
-        if self.field not in fetch:
+    def get(self, fetches: LdapFetch) -> List[str]:
+        if self.field not in fetches.values:
             return []
-        return self.foreign_view.try_get_primary_keys([val.decode() for val in fetch[self.field]])
+        return self.foreign_view.try_get_primary_keys([val for val in fetches.values[self.field]])
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         pass
 
-    def set(self, fetches: LdapSearchEntity, modlist: LdapModlist, assignments: Dict[str, Any]):
-        add_dns = [add_dn.encode() for add_dn in self.foreign_view.get_dns(assignments.get('add', []))]
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
+        add_dns = [add_dn for add_dn in self.foreign_view.get_dns(assignments.get('add', []))]
         if add_dns:
-            modlist.append((Mod.ADD, self.field, add_dns))
-        delete_dns = [delete_dn.encode() for delete_dn in self.foreign_view.get_dns(assignments.get('delete', []))]
+            if self.field not in modlist:
+                modlist[self.field] = []
+            modlist[self.field].append((LdapMods.ADD, add_dns))
+            if self.field in fetches.values:
+                fetches.values[self.field].extend(add_dns)
+            else:
+                fetches.values[self.field] = add_dns
+        delete_dns = [delete_dn for delete_dn in self.foreign_view.get_dns(assignments.get('delete', []))]
         if delete_dns:
-            modlist.append((Mod.DELETE, self.field, delete_dns))
+            if self.field not in modlist:
+                modlist[self.field] = []
+            modlist[self.field].append((LdapMods.DELETE, delete_dns))
+            if self.field in fetches.values:
+                for dn in delete_dns:
+                    try:
+                        fetches.values[self.field].remove(dn)
+                    except ValueError:
+                        pass
 
-    def create(self, fetches: LdapSearchEntity, addlist: LdapAddlist, assignments: Dict[str, Any]):
-        add_dns = [add_dn.encode() for add_dn in self.foreign_view.get_dns(assignments.get('add', []))]
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
+        add_dns = [add_dn for add_dn in self.foreign_view.get_dns(assignments.get('add', []))]
         if assignments.get('delete', []):
             raise falcon.HTTPBadRequest(description="Cannot remove on creation")
         if len(add_dns) == 0:
             return
-        add_entry = None
-        for entry in addlist:
-            if entry[0] == self.field:
-                add_entry = entry
-        if add_entry is None:
-            addlist.append((self.field, add_dns))
+        if self.field not in addlist:
+            addlist[self.field] = add_dns
         else:
-            add_entry[1].extend(add_dns)
+            addlist[self.field].extend(add_dns)
+        if self.field in fetches.values:
+            fetches.values[self.field].extend(add_dns)
+        else:
+            fetches.values[self.field] = add_dns
 
 
 view_detail_types = {
@@ -291,7 +301,7 @@ class ViewDetails:
             except falcon.HTTPBadRequest as e:
                 raise HTTPBadRequestField(e.title, e.description, view.key)
 
-    def get(self, fetches: LdapSearchEntity) -> Dict[str, Union[Dict[str, Any], List[str]]]:
+    def get(self, fetches: LdapFetch) -> Dict[str, Union[Dict[str, Any], List[str]]]:
         results: Dict[str, Union[Dict[str, Any], List[str]]] = dict()
         for view in self.views:
             try:
@@ -316,7 +326,7 @@ class ViewDetails:
                     raise HTTPBadRequestField(e.title, e.description, view.key)
 
     def set(
-            self, fetches: LdapSearchEntity, modlist: LdapModlist,
+            self, fetches: LdapFetch, modlist: LdapModlist,
             assignments: Dict[str, Dict[str, Any]]
     ):
         for view in self.views:
@@ -331,7 +341,7 @@ class ViewDetails:
                     raise HTTPBadRequestField(e.title, e.description, view.key)
 
     def create(
-            self, fetches: LdapSearchEntity, addlist: LdapAddlist,
+            self, fetches: LdapFetch, addlist: LdapAddlist,
             assignments: Dict[str, Dict[str, Any]]
     ):
         for view in self.views:
@@ -346,7 +356,7 @@ class ViewDetails:
                     raise HTTPBadRequestField(e.title, e.description, view.key)
 
     def set_post(
-            self, fetches: LdapSearchEntity, assignments: Dict[str, Dict[str, Any]], is_new: bool
+            self, fetches: LdapFetch, assignments: Dict[str, Dict[str, Any]], is_new: bool
     ):
         for view in self.views:
             view_assignments = assignments.get(view.key)

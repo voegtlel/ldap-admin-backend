@@ -3,7 +3,7 @@ FROM python:3.6-alpine
 ADD requirements.txt /srv/
 WORKDIR /srv
 
-RUN apk --update add libldap && apk --update add --virtual build-dependencies python3-dev build-base openldap-dev wget \
+RUN apk --update add --virtual build-dependencies python3-dev build-base openldap-dev wget \
   && pip install -r requirements.txt \
   && pip install gunicorn \
   && apk del build-dependencies && rm -rf /var/cache/apk/*

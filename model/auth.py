@@ -2,9 +2,10 @@ from typing import Dict
 
 import falcon
 from falcon_auth import FalconAuthMiddleware, JWTAuthBackend
+from ldap3.core.exceptions import LDAPCommunicationError, LDAPInvalidCredentialsResult
 
 from model.anti_spam import AntiSpam
-from model.db import Database
+from model.db import DatabaseFactory, FalconLdapError
 from model.view import View
 
 
@@ -117,12 +118,12 @@ class RegisterConfigApi:
 
 
 class Auth:
-    def __init__(self, all_views: Dict[str, View], db: Database, config: dict):
+    def __init__(self, all_views: Dict[str, View], db_factory: DatabaseFactory, config: dict):
         self.secret_key = config['secretKey']
         self.header_prefix = config['headerPrefix']
         self.expiration = config['expiration']
         self.view = all_views[config['view']]
-        self.db = db
+        self.db_factory = db_factory
 
         self.anti_spam = AntiSpam(config['antiSpam'])
 
@@ -145,9 +146,17 @@ class Auth:
         return self.view.get_auth_entry(primary_key)
 
     def login(self, primary_key: str, password: str):
-        if not self.db.verify_password(self.view.get_dn(primary_key), password):
-            # TODO: This was 400 before! Now it is 401.
+        try:
+            if primary_key is None:
+                raise ValueError("primary_key must not be None")
+            if password is None:
+                raise ValueError("password must not be None")
+            self.db_factory.connect(user=self.view.get_dn(primary_key), password=password)
+        except LDAPInvalidCredentialsResult:
             raise falcon.HTTPUnauthorized()
+        except LDAPCommunicationError as e:
+            raise FalconLdapError(e)
+
         return self.view.get_auth_entry(primary_key), self.auth_backend.get_auth_token(primary_key)
 
     def register(self, app: falcon.API):
