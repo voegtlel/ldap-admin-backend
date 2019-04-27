@@ -15,7 +15,7 @@ views:
     dn: 'ou=users'
     primaryKey: uid
     permissions: ['isAdmin']
-    classes:
+    objectClass:
       - 'inetOrgPerson'
       - 'simpleSecurityObject'
     title: "Users"
@@ -289,12 +289,16 @@ views:
     dn: 'ou=services'
     primaryKey: cn
     permissions: ['isSuperuser']
-    classes:
+    objectClass:
       - 'groupOfNames'
       - 'simpleSecurityObject'
     title: "Services"
     description: "Manage services"
     iconClasses: "fa fa-users"
+
+    autoCreate:
+      objectClass: ['top', 'organizationalUnit']
+      ou: 'groups'
 
     # These properties are shown in a list of all services
     list:
@@ -343,11 +347,15 @@ views:
     dn: 'ou=groups'
     primaryKey: cn
     permissions: ['isAdmin']
-    classes:
+    objectClass:
       - 'groupOfNames'
     title: "Groups"
     description: "Manage groups"
     iconClasses: "fa fa-user-secret"
+
+    autoCreate:
+      objectClass: ['top', 'organizationalUnit']
+      ou: 'groups'
 
     # These properties are shown in a list of all groups
     list:
@@ -390,12 +398,16 @@ views:
     dn: 'ou=mailboxes'
     primaryKey: cn
     permissions: ['isAdmin']
-    classes:
+    objectClass:
       - 'groupOfNames'
       # TODO: Add class for mail config here
     title: "Mailboxes"
     description: "Manage mailboxes"
     iconClasses: "fa fa-envelope"
+
+    autoCreate:
+      objectClass: ['top', 'organizationalUnit']
+      ou: 'mailboxes'
 
     # These properties are shown in a list of all groups
     list:
