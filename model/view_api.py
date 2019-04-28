@@ -30,7 +30,7 @@ class ViewListApi:
         resp.status = falcon.HTTP_200
 
     def register(self, app: falcon.API):
-        app.add_route('/' + self.view.key + '/', self)
+        app.add_route('/' + self.view.key, self)
 
 
 class ViewDetailApi:
@@ -65,7 +65,7 @@ class ViewDetailApi:
         resp.status = falcon.HTTP_200
 
     def register(self, app: falcon.API):
-        app.add_route('/' + self.view.key + '/{primary_key}/', self)
+        app.add_route('/' + self.view.key + '/{primary_key}', self)
 
 
 class UserConfigApi:
@@ -81,7 +81,7 @@ class UserConfigApi:
         resp.status = falcon.HTTP_200
 
     def register(self, app: falcon.API):
-        app.add_route('/config/', self)
+        app.add_route('/config', self)
 
 
 class ViewsApi:

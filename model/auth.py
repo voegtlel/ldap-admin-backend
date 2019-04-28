@@ -30,7 +30,7 @@ class JwtAuthApi:
         print("Authenticated", userdata)
 
     def register(self, app: falcon.API):
-        app.add_route('/jwt-auth/', self)
+        app.add_route('/jwt-auth', self)
 
 
 class AuthUserApi:
@@ -44,7 +44,7 @@ class AuthUserApi:
         resp.media = user
 
     def register(self, app: falcon.API):
-        app.add_route('/auth/', self)
+        app.add_route('/auth', self)
 
 
 class RegisterUserApi:
@@ -71,7 +71,7 @@ class RegisterUserApi:
         resp.status = falcon.HTTP_200
 
     def register(self, app: falcon.API):
-        app.add_route('/register/', self)
+        app.add_route('/register', self)
 
 
 class SelfUserApi:
@@ -98,7 +98,7 @@ class SelfUserApi:
         resp.status = falcon.HTTP_200
 
     def register(self, app: falcon.API):
-        app.add_route('/user/', self)
+        app.add_route('/user', self)
 
 
 class RegisterConfigApi:
@@ -114,7 +114,7 @@ class RegisterConfigApi:
         resp.status = falcon.HTTP_200
 
     def register(self, app: falcon.API):
-        app.add_route('/register-config/', self)
+        app.add_route('/register-config', self)
 
 
 class Auth:
