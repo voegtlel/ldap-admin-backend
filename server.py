@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import logging
+
 import falcon
 from falcon_cors import CORS
 
@@ -38,6 +40,9 @@ class MaxBody:
             msg = ('The size of the request is too large. The body must not '
                    'exceed ' + str(self._max_size) + ' bytes in length.')
             raise falcon.HTTPPayloadTooLarge('Request body is too large', msg)
+
+
+logging.basicConfig(level=logging.INFO)
 
 
 db_factory = DatabaseFactory(config['ldap'])

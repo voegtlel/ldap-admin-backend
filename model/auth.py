@@ -1,3 +1,4 @@
+import logging
 from typing import Dict
 
 import falcon
@@ -27,7 +28,7 @@ class JwtAuthApi:
             'token': token,
             'user': userdata
         }
-        print("Authenticated", userdata)
+        logging.info("Authenticated", userdata)
 
     def register(self, app: falcon.API):
         app.add_route('/jwt-auth', self)
@@ -66,7 +67,7 @@ class RegisterUserApi:
 
         self.view.create_register(user)
 
-        print("Registered with comment", user['signupComment'])
+        logging.info("Registered with comment", user['signupComment'])
 
         resp.status = falcon.HTTP_200
 
@@ -141,9 +142,13 @@ class Auth:
         )
 
     def user_loader(self, jwt_payload):
-        primary_key = jwt_payload['user']
+        primary_key = jwt_payload['user']['uid']
         assert isinstance(primary_key, str)
-        return self.view.get_auth_entry(primary_key)
+        auth_entry = self.view.get_auth_entry(primary_key)
+        if 'timestamp' in auth_entry:
+            if auth_entry['timestamp'] != jwt_payload['user']['timestamp']:
+                raise falcon.HTTPUnauthorized()
+        return auth_entry
 
     def login(self, primary_key: str, password: str):
         try:
@@ -157,7 +162,12 @@ class Auth:
         except LDAPCommunicationError as e:
             raise FalconLdapError(e)
 
-        return self.view.get_auth_entry(primary_key), self.auth_backend.get_auth_token(primary_key)
+        auth_entry = self.view.get_auth_entry(primary_key)
+
+        jwt_payload = {'uid': primary_key}
+        if 'timestamp' in auth_entry:
+            jwt_payload['timestamp'] = auth_entry['timestamp']
+        return auth_entry, self.auth_backend.get_auth_token(jwt_payload)
 
     def register(self, app: falcon.API):
         JwtAuthApi(self).register(app)

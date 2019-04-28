@@ -65,6 +65,7 @@ views:
             type: text
             title: "User ID"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
             required: true
           cn:
@@ -76,11 +77,13 @@ views:
             type: text
             title: "Given name"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           displayName:
             type: generate
@@ -91,11 +94,13 @@ views:
             type: text
             title: "E-Mail"
             format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            formatMessage: "mail@example.com"
             required: true
           mobile:
             type: text
             title: "Mobile"
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            formatMessage: "+49 151 1234567"
             required: true
           isAdmin:
             type: isMemberOf
@@ -146,11 +151,13 @@ views:
             type: text
             title: "Given name"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           displayName:
             type: generate
@@ -161,11 +168,13 @@ views:
             type: text
             title: "E-Mail"
             format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            formatMessage: "mail@example.com"
             required: true
           mobile:
             type: text
             title: "Mobile"
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            formatMessage: "+49 151 1234567"
             required: true
       password:
         type: fields
@@ -197,6 +206,7 @@ views:
             type: text
             title: "User ID"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
             required: true
           cn:
@@ -208,11 +218,13 @@ views:
             type: text
             title: "Given name"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           displayName:
             type: generate
@@ -223,11 +235,13 @@ views:
             type: text
             title: "E-Mail"
             format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            formatMessage: "mail@example.com"
             required: true
           mobile:
             type: text
             title: "Mobile"
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            formatMessage: "+49 151 1234567"
             required: true
           new:
             type: initial
@@ -268,6 +282,12 @@ views:
         type: text
         field: mail
         title: "E-Mail"
+      # Used for authentication security
+      timestamp:
+        type: datetime
+        title: "Modify Timestamp"
+        field: modifyTimestamp
+        writable: false
       # Permissions
       isAdmin:
         type: isMemberOf
@@ -316,6 +336,7 @@ views:
             type: text
             title: "Common Name"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
           userPassword:
             type: password
@@ -373,6 +394,7 @@ views:
             type: text
             title: "Common Name"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
       memberUsers:
         type: member
@@ -425,6 +447,7 @@ views:
             type: text
             title: "Common Name"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
       memberUsers:
         type: member

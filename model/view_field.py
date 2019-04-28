@@ -1,8 +1,10 @@
 import string
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from datetime import datetime
 from typing import Dict, Set, List, Any, Optional, Pattern, Callable, Iterable, cast
 
+import dateutil.parser
 import falcon
 import passlib.hash
 import passlib.pwd
@@ -116,10 +118,12 @@ class ViewFieldText(ViewField):
         super().__init__(key, config, **overrides)
         self.field: str = config.get('field', self.key)
         self.format: Pattern = regex.compile(config.get('format', ''), regex.UNICODE)
+        self.formatMessage: str = config.get('formatMessage', config.get('format', ''))
 
         self.config.update(OrderedDict([
             ('field', self.field),
-            ('format', config.get('formatJs', config.get('format', '')))
+            ('format', config.get('formatJs', config.get('format', ''))),
+            ('formatMessage', self.formatMessage),
         ]))
 
     def get_fetch(self, fetches: Set[str]):
@@ -150,7 +154,7 @@ class ViewFieldText(ViewField):
 
         if not self.format.fullmatch(assignments[self.key]):
             raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
-                assignments[self.key], self.key, self.format
+                assignments[self.key], self.key, self.formatMessage
             ))
 
         value = assignments[self.key]
@@ -189,6 +193,92 @@ class ViewFieldText(ViewField):
         fetches.values[self.field] = [value]
 
 
+class ViewFieldDateTime(ViewField):
+    format = regex.compile(
+        r'^(-?(?:[1-9][0-9]*)?[0-9]{4})-(1[0-2]|0[1-9])-(3[01]|0[1-9]|[12][0-9])'
+        r'T(2[0-3]|[01][0-9]):([0-5][0-9]):([0-5][0-9])(\.[0-9]+)?'
+        r'(Z|[+-](?:2[0-3]|[01][0-9]):[0-5][0-9])?$'
+    )
+
+    formatMessage = "ISO 8601"
+
+    def __init__(self, key: str, config: dict, **overrides):
+        super().__init__(key, config, **overrides)
+        self.field: str = config.get('field', self.key)
+
+        self.config.update(OrderedDict([
+            ('field', self.field),
+            ('format', self.format.pattern),
+            ('formatMessage', self.formatMessage),
+        ]))
+
+    def get_fetch(self, fetches: Set[str]):
+        if not self.readable:
+            return
+        fetches.add(self.field)
+
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
+        if not self.readable:
+            return
+        if self.field in fetches.values and len(fetches.values[self.field]) > 0:
+            results[self.key] = cast(datetime, fetches.values[self.field][0]).isoformat()
+
+    def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
+        if self.key not in assignments:
+            return
+        if self.required and not assignments[self.key]:
+            raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+        if not self.writable:
+            raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
+        fetches.add(self.field)
+
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
+        if self.key not in assignments:
+            return
+        if not self.writable:
+            raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
+
+        if not self.format.fullmatch(assignments[self.key]):
+            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting ISO 8601".format(
+                assignments[self.key], self.key,
+            ))
+
+        value = assignments[self.key]
+        if not value:
+            if self.required:
+                raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+            if self.field in fetches.values:
+                modlist[self.field] = [(LdapMods.DELETE, [])]
+        elif self.field in fetches.values:
+            fetch_val = fetches.values[self.field]
+            if len(fetch_val) != 1 or fetch_val[0] != value:
+                modlist[self.field] = [(LdapMods.REPLACE, [dateutil.parser.isoparse(value)])]
+        else:
+            modlist[self.field] = [(LdapMods.ADD, [dateutil.parser.isoparse(value)])]
+        fetches.values[self.field] = [value]
+
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
+        if self.key not in assignments:
+            if self.required:
+                raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+            return
+        if not self.creatable:
+            raise falcon.HTTPBadRequest(description="Cannot create {}".format(self.key))
+
+        if not self.format.fullmatch(assignments[self.key]):
+            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
+                assignments[self.key], self.key, self.format
+            ))
+
+        value = assignments[self.key]
+        if self.field in fetches.values:
+            raise falcon.HTTPBadRequest(description="Cannot modify value")
+        if not value and self.required:
+            raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+        addlist[self.field] = [dateutil.parser.isoparse(value)]
+        fetches.values[self.field] = [dateutil.parser.isoparse(value)]
+
+
 class ViewFieldPassword(ViewField):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
@@ -211,7 +301,10 @@ class ViewFieldPassword(ViewField):
         if not self.readable:
             return
         if self.field in fetches.values and len(fetches.values[self.field]) > 0:
-            results[self.key] = fetches.values[self.field][0]
+            passwd = fetches.values[self.field][0]
+            if isinstance(passwd, bytes):
+                passwd = passwd.decode()
+            results[self.key] = passwd
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         if self.key not in assignments:
@@ -481,6 +574,7 @@ class ViewFieldInitial(ViewField):
 
 view_field_types = {
     'text': ViewFieldText,
+    'datetime': ViewFieldDateTime,
     'generate': ViewFieldGenerate,
     'isMemberOf': ViewFieldIsMemberOf,
     'password': ViewFieldPassword,

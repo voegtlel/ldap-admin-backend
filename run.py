@@ -1,3 +1,4 @@
+import logging
 import os
 from wsgiref.simple_server import make_server
 
@@ -6,7 +7,7 @@ def main():
     import server
 
     with make_server('localhost', 8000, server.app) as httpd:
-        print("Server up at localhost:8000")
+        logging.info("Server up at localhost:8000")
         httpd.serve_forever()
 
 
