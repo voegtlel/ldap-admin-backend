@@ -512,7 +512,9 @@ class ViewFieldIsMemberOf(ViewField):
         if not (is_new and self.creatable) and not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
 
-        is_member = self.member_of_dn in fetches.values.get(self.field, ())
+        if self.field not in fetches.values:
+            fetches.values[self.field] = []
+        is_member = self.member_of_dn in fetches.values[self.field]
         if is_member == assignments[self.key]:
             return
 

@@ -84,7 +84,6 @@ class View:
             else:
                 raise
 
-
     @property
     def user_config(self) -> dict:
         return self._user_config

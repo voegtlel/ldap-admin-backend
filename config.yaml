@@ -19,7 +19,7 @@ views:
       - 'inetOrgPerson'
       - 'simpleSecurityObject'
     title: "Users"
-    iconClasses: "fa fa-user"
+    iconClasses: "person"
     description: "Manage users"
 
     # These properties are shown in a list of all users
@@ -132,6 +132,10 @@ views:
         type: memberOf
         title: "Member of groups"
         foreignView: groups
+      memberOfTeams:
+        type: memberOf
+        title: "Member of teams"
+        foreignView: teams
       memberOfServices:
         type: memberOf
         title: "Member of services"
@@ -191,6 +195,10 @@ views:
         type: memberOf
         title: "Member of groups"
         foreignView: groups
+      memberOfTeams:
+        type: memberOf
+        title: "Member of teams"
+        foreignView: teams
       memberOfServices:
         type: memberOf
         title: "Member of services"
@@ -314,7 +322,7 @@ views:
       - 'simpleSecurityObject'
     title: "Services"
     description: "Manage services"
-    iconClasses: "fa fa-users"
+    iconClasses: "browser"
 
     autoCreate:
       objectClass: ['top', 'organizationalUnit']
@@ -372,7 +380,7 @@ views:
       - 'groupOfNames'
     title: "Groups"
     description: "Manage groups"
-    iconClasses: "fa fa-user-secret"
+    iconClasses: "lock"
 
     autoCreate:
       objectClass: ['top', 'organizationalUnit']
@@ -416,6 +424,42 @@ views:
         type: memberOf
         title: "Member of services"
         foreignView: services
+  teams:
+    dn: 'ou=teams'
+    primaryKey: cn
+    permissions: ['isAdmin']
+    objectClass:
+      - 'groupOfNames'
+    title: "Teams"
+    description: "Manage teams"
+    iconClasses: "people"
+
+    autoCreate:
+      objectClass: ['top', 'organizationalUnit']
+      ou: 'teams'
+
+    # These properties are shown in a list of all teams
+    list:
+      cn:
+        type: text
+        title: "Common Name"
+
+    # These properties are editable for single teams
+    details:
+      group:
+        type: fields
+        title: "Team"
+        fields:
+          cn:
+            type: text
+            title: "Common Name"
+            format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
+            writable: false
+      memberUsers:
+        type: member
+        title: "Member users"
+        foreignView: "users"
   mailboxes:
     dn: 'ou=mailboxes'
     primaryKey: cn
@@ -425,7 +469,7 @@ views:
       # TODO: Add class for mail config here
     title: "Mailboxes"
     description: "Manage mailboxes"
-    iconClasses: "fa fa-envelope"
+    iconClasses: "email"
 
     autoCreate:
       objectClass: ['top', 'organizationalUnit']
@@ -463,7 +507,7 @@ views:
         foreignView: "services"
 
 auth:
-  secretKey: 2utq084nhg084qnhg943qjg3q9guwqg
+  secretKey: 2utq084nhg084qnhg943qjg3q9guwqv
   headerPrefix: Bearer
   #expiration: 60*60*24*30
   expiration: 2592000
@@ -476,4 +520,4 @@ auth:
       - question: "Who is current representative for JDAV?"
         answer: '^[Mm]athieu'
 
-allowOrigins: ['http://localhost:4200']
+allowOrigins: ['http://localhost:4200', 'http://127.0.0.1:4200']
