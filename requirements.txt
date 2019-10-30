@@ -5,3 +5,4 @@ ldap3
 regex
 passlib
 oyaml
+python-dateutil

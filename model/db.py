@@ -1,3 +1,4 @@
+import logging
 from types import GeneratorType
 from typing import List, Tuple, NewType, Dict, Union, Set
 
@@ -43,6 +44,7 @@ class FalconLdapError(falcon.HTTPBadRequest):
             description="{} ({})".format(str(original_error), type(original_error).__name__)
         )
         self.original_error = original_error
+        logging.exception(str(original_error))
 
 
 class DatabaseFactory:

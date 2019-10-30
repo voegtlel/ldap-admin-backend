@@ -44,4 +44,4 @@ class AntiSpam:
             raise falcon.HTTPForbidden(description="Wrong answer")
 
     def register(self, app: falcon.API):
-        app.add_route('/anti-spam/', self)
+        app.add_route('/anti-spam', self)

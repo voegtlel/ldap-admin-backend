@@ -1,3 +1,4 @@
+import logging
 from collections import OrderedDict
 from typing import Dict, List, Set, Any, Optional, Union
 
@@ -76,13 +77,12 @@ class View:
         except LDAPNoSuchObjectResult:
             if self._auto_create is not None:
                 # Create the object
-                print("Adding '{}'".format(self._dn))
+                logging.info("Adding '{}'".format(self._dn))
                 self._db.add(self._dn, attributes=self._auto_create)
                 # Ensure the object exists now
                 self._db.search(self._dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE)
             else:
                 raise
-
 
     @property
     def user_config(self) -> dict:

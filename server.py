@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+import logging
+import os
+
 import falcon
 from falcon_cors import CORS
 
@@ -22,7 +25,7 @@ class RequireJSON:
                 href='http://docs.examples.com/api/json')
 
         if req.method in ('POST', 'PUT', 'PATCH'):
-            if 'application/json' not in req.content_type:
+            if not req.content_type or 'application/json' not in req.content_type:
                 raise falcon.HTTPUnsupportedMediaType(
                     'This API only supports requests encoded as JSON.',
                     href='http://docs.examples.com/api/json')
@@ -40,7 +43,19 @@ class MaxBody:
             raise falcon.HTTPPayloadTooLarge('Request body is too large', msg)
 
 
-db_factory = DatabaseFactory(config['ldap'])
+logging.basicConfig(level=logging.INFO)
+
+
+if os.environ.get('TEST_USER_DATABASE') == "1":
+    from db_mock import MockDatabaseFactory
+
+    db_factory = MockDatabaseFactory(config['ldap'])
+
+    auth_view = config['views'][config['auth']['view']]
+    view_prefix = auth_view['dn'] + "," + config['ldap']['prefix']
+    db_factory.connection.add(view_prefix, ['top', 'organizationalUnit'], {'ou': ['groups']})
+else:
+    db_factory = DatabaseFactory(config['ldap'])
 views = ViewsApi(db_factory, config['views'])
 auth = Auth(views.views, db_factory, config['auth'])
 
@@ -51,3 +66,49 @@ app = falcon.API(
 views.register(app)
 auth.register(app)
 
+
+if os.environ.get('TEST_USER_DATABASE') == "1":
+    users_view = views.views['users']
+    groups_view = views.views['groups']
+
+    user = {
+        permission: True
+        for permission in config['views'][config['auth']['view']]['permissions']
+    }
+    user[config['views'][config['auth']['view']]['primaryKey']] = 'unknown'
+
+    groups_view.create_detail(user, {
+        'group': {
+            'cn': 'admin'
+        }
+    })
+    groups_view.create_detail(user, {
+        'group': {
+            'cn': 'superuser'
+        }
+    })
+    groups_view.create_detail(user, {
+        'group': {
+            'cn': 'new'
+        }
+    })
+
+    users_view.create_detail(
+        user=user,
+        assignments={
+            'user': {
+                'uid': 'test',
+                'givenName': 'Test',
+                'sn': 'Tester',
+                'mail': 'tester@localhost.localdomain',
+                'mobile': '0123 456789',
+                'isAdmin': True,
+                'isSuperuser': True,
+                'isNew': False,
+            },
+            'password': {
+                'userPassword': 'blabla',
+            },
+            'memberOfGroups': {'add': ['admin', 'superuser']},
+        }
+    )

@@ -19,7 +19,7 @@ views:
       - 'inetOrgPerson'
       - 'simpleSecurityObject'
     title: "Users"
-    iconClasses: "fa fa-user"
+    iconClasses: "person"
     description: "Manage users"
 
     # These properties are shown in a list of all users
@@ -65,6 +65,7 @@ views:
             type: text
             title: "User ID"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
             required: true
           cn:
@@ -76,11 +77,13 @@ views:
             type: text
             title: "Given name"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           displayName:
             type: generate
@@ -91,11 +94,13 @@ views:
             type: text
             title: "E-Mail"
             format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            formatMessage: "mail@example.com"
             required: true
           mobile:
             type: text
             title: "Mobile"
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            formatMessage: "+49 151 1234567"
             required: true
           isAdmin:
             type: isMemberOf
@@ -127,6 +132,10 @@ views:
         type: memberOf
         title: "Member of groups"
         foreignView: groups
+      memberOfTeams:
+        type: memberOf
+        title: "Member of teams"
+        foreignView: teams
       memberOfServices:
         type: memberOf
         title: "Member of services"
@@ -146,11 +155,13 @@ views:
             type: text
             title: "Given name"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           displayName:
             type: generate
@@ -161,11 +172,13 @@ views:
             type: text
             title: "E-Mail"
             format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            formatMessage: "mail@example.com"
             required: true
           mobile:
             type: text
             title: "Mobile"
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            formatMessage: "+49 151 1234567"
             required: true
       password:
         type: fields
@@ -182,6 +195,10 @@ views:
         type: memberOf
         title: "Member of groups"
         foreignView: groups
+      memberOfTeams:
+        type: memberOf
+        title: "Member of teams"
+        foreignView: teams
       memberOfServices:
         type: memberOf
         title: "Member of services"
@@ -197,6 +214,7 @@ views:
             type: text
             title: "User ID"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
             required: true
           cn:
@@ -208,11 +226,13 @@ views:
             type: text
             title: "Given name"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
             format: '^[\p{L} ]+$'
+            formatMessage: "letter characters and spaces"
             required: true
           displayName:
             type: generate
@@ -223,11 +243,13 @@ views:
             type: text
             title: "E-Mail"
             format: '^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            formatMessage: "mail@example.com"
             required: true
           mobile:
             type: text
             title: "Mobile"
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
+            formatMessage: "+49 151 1234567"
             required: true
           new:
             type: initial
@@ -268,6 +290,12 @@ views:
         type: text
         field: mail
         title: "E-Mail"
+      # Used for authentication security
+      timestamp:
+        type: datetime
+        title: "Modify Timestamp"
+        field: modifyTimestamp
+        writable: false
       # Permissions
       isAdmin:
         type: isMemberOf
@@ -294,7 +322,7 @@ views:
       - 'simpleSecurityObject'
     title: "Services"
     description: "Manage services"
-    iconClasses: "fa fa-users"
+    iconClasses: "browser"
 
     autoCreate:
       objectClass: ['top', 'organizationalUnit']
@@ -316,6 +344,7 @@ views:
             type: text
             title: "Common Name"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
           userPassword:
             type: password
@@ -351,7 +380,7 @@ views:
       - 'groupOfNames'
     title: "Groups"
     description: "Manage groups"
-    iconClasses: "fa fa-user-secret"
+    iconClasses: "lock"
 
     autoCreate:
       objectClass: ['top', 'organizationalUnit']
@@ -373,6 +402,7 @@ views:
             type: text
             title: "Common Name"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
       memberUsers:
         type: member
@@ -394,6 +424,42 @@ views:
         type: memberOf
         title: "Member of services"
         foreignView: services
+  teams:
+    dn: 'ou=teams'
+    primaryKey: cn
+    permissions: ['isAdmin']
+    objectClass:
+      - 'groupOfNames'
+    title: "Teams"
+    description: "Manage teams"
+    iconClasses: "people"
+
+    autoCreate:
+      objectClass: ['top', 'organizationalUnit']
+      ou: 'teams'
+
+    # These properties are shown in a list of all teams
+    list:
+      cn:
+        type: text
+        title: "Common Name"
+
+    # These properties are editable for single teams
+    details:
+      group:
+        type: fields
+        title: "Team"
+        fields:
+          cn:
+            type: text
+            title: "Common Name"
+            format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
+            writable: false
+      memberUsers:
+        type: member
+        title: "Member users"
+        foreignView: "users"
   mailboxes:
     dn: 'ou=mailboxes'
     primaryKey: cn
@@ -403,7 +469,7 @@ views:
       # TODO: Add class for mail config here
     title: "Mailboxes"
     description: "Manage mailboxes"
-    iconClasses: "fa fa-envelope"
+    iconClasses: "email"
 
     autoCreate:
       objectClass: ['top', 'organizationalUnit']
@@ -425,6 +491,7 @@ views:
             type: text
             title: "Common Name"
             format: '^[0-9a-zA-Z_-]+$'
+            formatMessage: "alphanumeric characters, '_' and '-'"
             writable: false
       memberUsers:
         type: member
@@ -440,7 +507,7 @@ views:
         foreignView: "services"
 
 auth:
-  secretKey: 2utq084nhg084qnhg943qjg3q9guwqg
+  secretKey: 2utq084nhg084qnhg943qjg3q9guwqv
   headerPrefix: Bearer
   #expiration: 60*60*24*30
   expiration: 2592000
@@ -453,4 +520,4 @@ auth:
       - question: "Who is current representative for JDAV?"
         answer: '^[Mm]athieu'
 
-allowOrigins: ['http://localhost:4200']
+allowOrigins: ['http://localhost:4200', 'http://127.0.0.1:4200']

@@ -197,11 +197,11 @@ class ViewGroupMemberOf(ViewGroup):
     def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         for add_ref in assignments.get('add', []):
             self.foreign_view.save_foreign_field(add_ref, {
-                self.foreign_field: (LdapMods.ADD, [fetches.dn])
+                self.foreign_field: [(LdapMods.ADD, [fetches.dn])]
             })
         for add_ref in assignments.get('delete', []):
             self.foreign_view.save_foreign_field(add_ref, {
-                self.foreign_field: (LdapMods.DELETE, [fetches.dn])
+                self.foreign_field: [(LdapMods.DELETE, [fetches.dn])]
             })
 
 
