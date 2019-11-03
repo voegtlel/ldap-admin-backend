@@ -17,7 +17,6 @@ views:
     permissions: ['isAdmin']
     objectClass:
       - 'inetOrgPerson'
-      - 'simpleSecurityObject'
     title: "Users"
     iconClasses: "person"
     description: "Manage users"
@@ -121,6 +120,10 @@ views:
         type: fields
         title: "Password"
         fields:
+          _enabled:
+            title: "Enabled"
+            type: objectClass
+            objectClass: simpleSecurityObject
           userPassword:
             title: "Password"
             readable: false
@@ -184,6 +187,11 @@ views:
         type: fields
         title: "Password"
         fields:
+          _enabled:
+            title: "Enabled"
+            type: objectClass
+            objectClass: simpleSecurityObject
+            writable: false
           userPassword:
             title: "Password"
             readable: false
@@ -265,6 +273,15 @@ views:
         type: fields
         title: "Password"
         fields:
+          hasPassword:
+            type: initial
+            title: "Set has password"
+            value: true
+            target:
+              key: _enabled
+              title: "Set has password"
+              type: objectClass
+              objectClass: simpleSecurityObject
           userPassword:
             title: "Password"
             readable: false

@@ -34,6 +34,18 @@ class ViewField(ABC):
             ('readable', self.readable),
             ('writable', self.writable),
         ])
+    
+    def _is_enabled(self, values: Dict[str, Any]):
+        """
+        Gets if this view is enabled depending on the values.
+        
+        Args:
+            values: The values to check
+        
+        Returns:
+            True, if the field is enabled
+        """
+        return self.key == '_enabled' or values.get('_enabled', True)
 
     def init(self, all_views: Dict[str, 'model.view.View'], all_fields: Dict[str, 'ViewField']):
         """
@@ -116,6 +128,9 @@ class ViewField(ABC):
 class ViewFieldText(ViewField):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
+        if key == '_enabled':
+            raise ValueError("Cannot use text as _enabled")
+
         self.field: str = config.get('field', self.key)
         self.format: Pattern = regex.compile(config.get('format', ''), regex.UNICODE)
         self.formatMessage: str = config.get('formatMessage', config.get('format', ''))
@@ -132,13 +147,13 @@ class ViewFieldText(ViewField):
         fetches.add(self.field)
 
     def get(self, fetches: LdapFetch, results: Dict[str, Any]):
-        if not self.readable:
+        if not self.readable or not self._is_enabled(results):
             return
         if self.field in fetches.values and len(fetches.values[self.field]) > 0:
             results[self.key] = fetches.values[self.field][0]
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        if self.key not in assignments:
+        if self.key not in assignments or not self._is_enabled(assignments):
             return
         if self.required and not assignments[self.key]:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -147,7 +162,7 @@ class ViewFieldText(ViewField):
         fetches.add(self.field)
 
     def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
-        if self.key not in assignments:
+        if self.key not in assignments or not self._is_enabled(assignments):
             return
         if not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
@@ -173,7 +188,7 @@ class ViewFieldText(ViewField):
 
     def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if self.key not in assignments:
-            if self.required:
+            if self.required and self._is_enabled(assignments):
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
             return
         if not self.creatable:
@@ -204,6 +219,9 @@ class ViewFieldDateTime(ViewField):
 
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
+        if key == '_enabled':
+            raise ValueError("Cannot use datetime as _enabled")
+
         self.field: str = config.get('field', self.key)
 
         self.config.update(OrderedDict([
@@ -218,13 +236,13 @@ class ViewFieldDateTime(ViewField):
         fetches.add(self.field)
 
     def get(self, fetches: LdapFetch, results: Dict[str, Any]):
-        if not self.readable:
+        if not self.readable or not self._is_enabled(results):
             return
         if self.field in fetches.values and len(fetches.values[self.field]) > 0:
             results[self.key] = cast(datetime, fetches.values[self.field][0]).isoformat()
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        if self.key not in assignments:
+        if self.key not in assignments or not self._is_enabled(assignments):
             return
         if self.required and not assignments[self.key]:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -233,7 +251,7 @@ class ViewFieldDateTime(ViewField):
         fetches.add(self.field)
 
     def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
-        if self.key not in assignments:
+        if self.key not in assignments or not self._is_enabled(assignments):
             return
         if not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
@@ -259,7 +277,7 @@ class ViewFieldDateTime(ViewField):
 
     def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if self.key not in assignments:
-            if self.required:
+            if self.required and self._is_enabled(assignments):
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
             return
         if not self.creatable:
@@ -282,6 +300,9 @@ class ViewFieldDateTime(ViewField):
 class ViewFieldPassword(ViewField):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
+        if key == '_enabled':
+            raise ValueError("Cannot use password as _enabled")
+
         self.field: str = config.get('field', self.key)
         self.auto_generate: bool = config.get('autoGenerate', False)
         self.hashing: Optional[Callable[[str], str]] = getattr(passlib.hash, 'ldap_' + config['hashing']).hash
@@ -298,7 +319,7 @@ class ViewFieldPassword(ViewField):
         fetches.add(self.field)
 
     def get(self, fetches: LdapFetch, results: Dict[str, Any]):
-        if not self.readable:
+        if not self.readable or not self._is_enabled(results):
             return
         if self.field in fetches.values and len(fetches.values[self.field]) > 0:
             passwd = fetches.values[self.field][0]
@@ -307,7 +328,7 @@ class ViewFieldPassword(ViewField):
             results[self.key] = passwd
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        if self.key not in assignments:
+        if self.key not in assignments or not self._is_enabled(assignments):
             return
         if self.required and not assignments[self.key]:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -316,7 +337,7 @@ class ViewFieldPassword(ViewField):
         fetches.add(self.field)
 
     def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
-        if self.key not in assignments:
+        if self.key not in assignments or not self._is_enabled(assignments):
             return
         if not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
@@ -326,7 +347,7 @@ class ViewFieldPassword(ViewField):
             str_value = assignments[self.key]
         value = self.hashing(str_value)
         if not value:
-            if self.required:
+            if self.required and self._is_enabled(assignments):
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
             if self.field in fetches.values:
                 modlist[self.field] = [(LdapMods.DELETE, [])]
@@ -340,7 +361,7 @@ class ViewFieldPassword(ViewField):
 
     def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if self.key not in assignments:
-            if self.required:
+            if self.required and self._is_enabled(assignments):
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
             return
         if not self.creatable:
@@ -378,6 +399,9 @@ class FieldNameExtractorFormatter(string.Formatter):
 class ViewFieldGenerate(ViewField):
     def __init__(self, key: str, config: dict, **overrides):
         super().__init__(key, config, **overrides)
+        if key == '_enabled':
+            raise ValueError("Cannot use generator as _enabled")
+
         self.field: str = config.get('field', self.key)
         self.format: str = config.get('format')
         name_extractor = FieldNameExtractorFormatter()
@@ -401,7 +425,7 @@ class ViewFieldGenerate(ViewField):
         fetches.add(self.field)
 
     def get(self, fetches: LdapFetch, results: Dict[str, Any]):
-        if not self.readable:
+        if not self.readable or not self._is_enabled(results):
             return
         if self.field in fetches.values and len(fetches.values[self.field]) > 0:
             results[self.key] = fetches.values[self.field][0]
@@ -409,7 +433,7 @@ class ViewFieldGenerate(ViewField):
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
         if self.key in assignments:
             raise falcon.HTTPBadRequest(description="Cannot assign value to generated field {}".format(self.key))
-        if not self.writable:
+        if not self.writable or not self._is_enabled(assignments):
             return
         if any(field in assignments for field in self.input_field_names):
             for input_field in self.input_fields:
@@ -419,7 +443,7 @@ class ViewFieldGenerate(ViewField):
     def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         if self.key in assignments:
             raise falcon.HTTPBadRequest(description="Cannot assign value to generated field {}".format(self.key))
-        if not self.writable:
+        if not self.writable or not self._is_enabled(assignments):
             return
         if not any(field in assignments for field in self.input_field_names):
             return
@@ -445,7 +469,7 @@ class ViewFieldGenerate(ViewField):
     def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if self.key in assignments:
             raise falcon.HTTPBadRequest(description="Cannot assign value to generated field {}".format(self.key))
-        if not self.creatable:
+        if not self.creatable or not self._is_enabled(assignments):
             return
         
         format_args: Dict[str, Any] = dict()
@@ -490,13 +514,13 @@ class ViewFieldIsMemberOf(ViewField):
         fetches.add(self.field)
 
     def get(self, fetches: LdapFetch, results: Dict[str, Any]):
-        if not self.readable:
+        if not self.readable or not self._is_enabled(results):
             return
         
         results[self.key] = self.member_of_dn in fetches.values.get(self.field, ())
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        if self.key not in assignments:
+        if self.key != '_enabled' and (self.key not in assignments or not self._is_enabled(assignments)):
             return
         if self.required and not assignments[self.key]:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -506,8 +530,10 @@ class ViewFieldIsMemberOf(ViewField):
 
     def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         if self.key not in assignments:
-            if is_new and self.required:
+            if is_new and self.required and self._is_enabled(assignments):
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+            if self.key == '_enabled':
+                assignments[self.key] = self.member_of_dn in fetches.values.get(self.field, ())
             return
         if not (is_new and self.creatable) and not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
@@ -562,6 +588,8 @@ class ViewFieldInitial(ViewField):
     def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         if assignments[self.key]:
             raise falcon.HTTPBadRequest("Cannot assign {}".format(self.key))
+        if not self._is_enabled(assignments):
+            return
         assignments[self.target.key] = self.value
         self.target.create(fetches, addlist, assignments)
 
@@ -570,8 +598,87 @@ class ViewFieldInitial(ViewField):
             pass
         if assignments[self.key]:
             raise falcon.HTTPBadRequest("Cannot assign {}".format(self.key))
+        if not self._is_enabled(assignments):
+            return
         assignments[self.target.key] = self.value
         self.target.set_post(fetches, assignments, is_new)
+
+
+class ViewFieldObjectClass(ViewField):
+    def __init__(self, key: str, config: dict, **overrides):
+        super().__init__(key, config, **overrides)
+        self.object_class: str = config['objectClass']
+        self.field: str = config.get('field', 'objectClass')
+
+        self.config.update(OrderedDict([
+            ('field', self.field),
+            ('objectClass', self.object_class),
+        ]))
+
+    def get_fetch(self, fetches: Set[str]):
+        if not self.readable:
+            return
+        fetches.add(self.field)
+
+    def get(self, fetches: LdapFetch, results: Dict[str, Any]):
+        if not self.readable or not self._is_enabled(results):
+            return
+
+        results[self.key] = self.object_class in fetches.values.get(self.field, ())
+
+    def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
+        if self.key != '_enabled' and (self.key not in assignments or not self._is_enabled(assignments)):
+            return
+        if self.required and not assignments[self.key]:
+            raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+        if not self.writable:
+            raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
+        fetches.add(self.field)
+
+    def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
+        if self.key not in assignments or not self._is_enabled(assignments):
+            if self.key == '_enabled':
+                assignments[self.key] = self.object_class in fetches.values.get(self.field, ())
+            return
+        if not self.writable:
+            raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
+
+        field_value = fetches.values.get(self.field)
+        value = assignments[self.key]
+        if not value:
+            if field_value is not None and self.object_class in field_value:
+                modlist[self.field] = [(LdapMods.DELETE, [self.object_class])]
+                field_value.remove(self.object_class)
+        elif field_value is None or self.object_class not in field_value:
+            modlist[self.field] = [(LdapMods.ADD, [self.object_class])]
+            if field_value is None:
+                fetches.values[self.field] = [self.object_class]
+            else:
+                fetches.values[self.field].append(self.object_class)
+
+    def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
+        if self.key not in assignments:
+            if self.required and self._is_enabled(assignments):
+                raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+            if self.key == '_enabled':
+                assignments[self.key] = False
+            return
+        if not self.creatable:
+            raise falcon.HTTPBadRequest(description="Cannot create {}".format(self.key))
+
+        if assignments[self.key]:
+            new_value = addlist[self.field]
+            if self.field in addlist:
+                if isinstance(new_value, list):
+                    new_value.append(self.object_class)
+                else:
+                    addlist[self.field] = [new_value, self.object_class]
+            else:
+                addlist[self.field] = [self.object_class]
+            if self.field in fetches.values:
+                fetches.values[self.field].append(self.object_class)
+            else:
+                fetches.values[self.field] = [self.object_class]
 
 
 view_field_types = {
@@ -581,4 +688,5 @@ view_field_types = {
     'isMemberOf': ViewFieldIsMemberOf,
     'password': ViewFieldPassword,
     'initial': ViewFieldInitial,
+    'objectClass': ViewFieldObjectClass,
 }

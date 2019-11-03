@@ -107,6 +107,7 @@ if os.environ.get('TEST_USER_DATABASE') == "1":
                 'isNew': False,
             },
             'password': {
+                '_enabled': True,
                 'userPassword': 'blabla',
             },
             'memberOfGroups': {'add': ['admin', 'superuser']},

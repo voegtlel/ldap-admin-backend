@@ -122,7 +122,7 @@ class View:
                 primary_key = value[self._primary_key]
         if not primary_key:
             raise HTTPBadRequestField(description="Missing primary key in assignments", field=self._primary_key)
-        addlist: LdapAddlist = LdapAddlist({'objectClass': self._classes})
+        addlist: LdapAddlist = LdapAddlist({'objectClass': list(self._classes)})
         dn = self.get_dn(primary_key)
         view.create(LdapFetch(dn, {}), addlist, assignments)
         try:
@@ -147,6 +147,8 @@ class View:
         try:
             self._db.search(self.get_dn(primary_key), "(objectClass=*)", search_scope=ldap3.BASE, attributes=list(fetches))
             fetched = LdapFetch.from_entry(self._db.entries[0])
+        except LDAPNoSuchObjectResult:
+            raise falcon.HTTPNotFound()
         except LDAPExceptionError as e:
             raise FalconLdapError(e)
         if isinstance(view, ViewList):
@@ -162,6 +164,8 @@ class View:
         try:
             self._db.search(dn, "(objectClass=*)", search_scope=ldap3.BASE, attributes=list(fetches))
             fetched = LdapFetch.from_entry(self._db.entries[0])
+        except LDAPNoSuchObjectResult:
+            raise falcon.HTTPNotFound()
         except LDAPExceptionError as e:
             raise FalconLdapError(e)
         modlist: LdapModlist = LdapModlist({})
@@ -169,6 +173,8 @@ class View:
         if modlist:
             try:
                 self._db.modify(dn, modlist)
+            except LDAPNoSuchObjectResult:
+                raise falcon.HTTPNotFound()
             except LDAPExceptionError as e:
                 raise FalconLdapError(e)
         view.set_post(fetched, assignments, False)
@@ -209,6 +215,8 @@ class View:
         self._check_permissions(user)
         try:
             self._db.delete(self.get_dn(primary_key))
+        except LDAPNoSuchObjectResult:
+            raise falcon.HTTPNotFound()
         except LDAPExceptionError as e:
             raise FalconLdapError(e)
 
@@ -216,6 +224,8 @@ class View:
         if modlist:
             try:
                 self._db.modify(self.get_dn(primary_key), modlist)
+            except LDAPNoSuchObjectResult:
+                raise falcon.HTTPNotFound()
             except LDAPExceptionError as e:
                 raise FalconLdapError(e)
 
