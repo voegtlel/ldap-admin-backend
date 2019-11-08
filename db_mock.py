@@ -85,7 +85,7 @@ class MockConnection:
             raise NotImplemented()
 
     def modify(self, dn: str, changes: LdapModlist):
-        #ldap3.Connection.modify()
+        # ldap3.Connection.modify()
         entry = self.data[dn]
         for key, item_changes in changes.items():
             data = entry.get(key)
@@ -132,6 +132,7 @@ class MockConnection:
         entry['modifyTimestamp'] = [datetime.now()]
 
     def delete(self, dn: str):
+        # ldap3.Connection.delete()
         if 'member' in self.data[dn]:
             for member_dn in self.data[dn]['member']:
                 self._remove_member(member_dn, dn)
