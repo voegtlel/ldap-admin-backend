@@ -15,11 +15,15 @@ views:
     dn: 'ou=users'
     primaryKey: uid
     permissions: ['isAdmin']
+    readPermissions: ['isAdmin']
     objectClass:
       - 'inetOrgPerson'
     title: "Users"
     iconClasses: "person"
     description: "Manage users"
+    autoCreate:
+      objectClass: ['top', 'organizationalUnit']
+      ou: 'users'
 
     # These properties are shown in a list of all users
     list:
@@ -75,13 +79,13 @@ views:
           givenName:
             type: text
             title: "Given name"
-            format: '^[\p{L} ]+$'
+            format: '^[\p{L} -]+$'
             formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
-            format: '^[\p{L} ]+$'
+            format: '^[\p{L} -]+$'
             formatMessage: "letter characters and spaces"
             required: true
           displayName:
@@ -157,13 +161,13 @@ views:
           givenName:
             type: text
             title: "Given name"
-            format: '^[\p{L} ]+$'
+            format: '^[\p{L} -]+$'
             formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
-            format: '^[\p{L} ]+$'
+            format: '^[\p{L} -]+$'
             formatMessage: "letter characters and spaces"
             required: true
           displayName:
@@ -203,14 +207,17 @@ views:
         type: memberOf
         title: "Member of groups"
         foreignView: groups
+        writable: false
       memberOfTeams:
         type: memberOf
         title: "Member of teams"
         foreignView: teams
+        writable: false
       memberOfServices:
         type: memberOf
         title: "Member of services"
         foreignView: services
+        writable: false
 
     # This defines how a user can register
     register:
@@ -233,13 +240,13 @@ views:
           givenName:
             type: text
             title: "Given name"
-            format: '^[\p{L} ]+$'
+            format: '^[\p{L} -]+$'
             formatMessage: "letter characters and spaces"
             required: true
           sn:
             type: text
             title: "Surname"
-            format: '^[\p{L} ]+$'
+            format: '^[\p{L} -]+$'
             formatMessage: "letter characters and spaces"
             required: true
           displayName:
@@ -334,6 +341,7 @@ views:
     dn: 'ou=services'
     primaryKey: cn
     permissions: ['isSuperuser']
+    readPermissions: ['isSuperuser']
     objectClass:
       - 'groupOfNames'
       - 'simpleSecurityObject'
@@ -393,6 +401,7 @@ views:
     dn: 'ou=groups'
     primaryKey: cn
     permissions: ['isAdmin']
+    readPermissions: ['isAdmin']
     objectClass:
       - 'groupOfNames'
     title: "Groups"
@@ -481,6 +490,7 @@ views:
     dn: 'ou=mailboxes'
     primaryKey: cn
     permissions: ['isAdmin']
+    readPermissions: ['isAdmin']
     objectClass:
       - 'groupOfNames'
       # TODO: Add class for mail config here

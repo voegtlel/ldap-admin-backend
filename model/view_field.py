@@ -520,7 +520,9 @@ class ViewFieldIsMemberOf(ViewField):
         results[self.key] = self.member_of_dn in fetches.values.get(self.field, ())
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        if self.key != '_enabled' and (self.key not in assignments or not self._is_enabled(assignments)):
+        if self.key not in assignments or not self._is_enabled(assignments):
+            if self.key == '_enabled':
+                fetches.add(self.field)
             return
         if self.required and not assignments[self.key]:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -627,7 +629,9 @@ class ViewFieldObjectClass(ViewField):
         results[self.key] = self.object_class in fetches.values.get(self.field, ())
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        if self.key != '_enabled' and (self.key not in assignments or not self._is_enabled(assignments)):
+        if self.key not in assignments or not self._is_enabled(assignments):
+            if self.key == '_enabled':
+                fetches.add(self.field)
             return
         if self.required and not assignments[self.key]:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))

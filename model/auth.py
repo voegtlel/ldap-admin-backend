@@ -1,5 +1,5 @@
 import logging
-from typing import Dict
+from typing import Dict, Any
 
 import falcon
 from falcon_auth import FalconAuthMiddleware, JWTAuthBackend
@@ -21,14 +21,8 @@ class JwtAuthApi:
     def on_post(self, req: falcon.Request, resp: falcon.Response):
         content = req.media
 
-        userdata, token = self.authenticator.login(content['username'], content['password'])
-
+        resp.media = self.authenticator.login(content['username'], content['password'])
         resp.status = falcon.HTTP_200
-        resp.media = {
-            'token': token,
-            'user': userdata
-        }
-        logging.info("Authenticated", userdata)
 
     def register(self, app: falcon.API):
         app.add_route('/jwt-auth', self)
@@ -75,33 +69,6 @@ class RegisterUserApi:
         app.add_route('/register', self)
 
 
-class SelfUserApi:
-    """Modify self user."""
-
-    def __init__(self, view: View):
-        self.view = view
-
-    def on_get(self, req: falcon.Request, resp: falcon.Response):
-        user = req.context.get('user')
-        if user is None:
-            raise falcon.HTTPForbidden()
-
-        resp.media = self.view.get_self_entry(user)
-        resp.status = falcon.HTTP_200
-
-    def on_patch(self, req: falcon.Request, resp: falcon.Response):
-        """Modify self user."""
-        user = req.context.get('user')
-        if user is None:
-            raise falcon.HTTPForbidden()
-
-        self.view.update_self(user, req.media)
-        resp.status = falcon.HTTP_200
-
-    def register(self, app: falcon.API):
-        app.add_route('/user', self)
-
-
 class RegisterConfigApi:
     auth = {
         'auth_disabled': True
@@ -142,7 +109,7 @@ class Auth:
         )
 
     def user_loader(self, jwt_payload):
-        primary_key = jwt_payload['user']['uid']
+        primary_key = jwt_payload['user']['primaryKey']
         assert isinstance(primary_key, str)
         auth_entry = self.view.get_auth_entry(primary_key)
         if 'timestamp' in auth_entry:
@@ -150,7 +117,12 @@ class Auth:
                 raise falcon.HTTPUnauthorized()
         return auth_entry
 
-    def login(self, primary_key: str, password: str):
+    def relogin(self, primary_key: str) -> Dict[str, Any]:
+        auth_entry = self.view.get_auth_entry(primary_key)
+
+        return {'token': self.auth_backend.get_auth_token(auth_entry)}
+
+    def login(self, primary_key: str, password: str) -> Dict[str, Any]:
         try:
             if primary_key is None:
                 raise ValueError("primary_key must not be None")
@@ -162,17 +134,11 @@ class Auth:
         except LDAPCommunicationError as e:
             raise FalconLdapError(e)
 
-        auth_entry = self.view.get_auth_entry(primary_key)
-
-        jwt_payload = {'uid': primary_key}
-        if 'timestamp' in auth_entry:
-            jwt_payload['timestamp'] = auth_entry['timestamp']
-        return auth_entry, self.auth_backend.get_auth_token(jwt_payload)
+        return self.relogin(primary_key)
 
     def register(self, app: falcon.API):
         JwtAuthApi(self).register(app)
         AuthUserApi().register(app)
         RegisterUserApi(self.anti_spam, self.view).register(app)
-        SelfUserApi(self.view).register(app)
         self.anti_spam.register(app)
         RegisterConfigApi(self.view).register(app)

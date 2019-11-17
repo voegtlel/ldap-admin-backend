@@ -22,6 +22,7 @@ class View:
         self._title: str = config['title']
         self._primary_key: str = config['primaryKey']
         self._permissions: List[str] = config['permissions']
+        self._read_permissions: List[str] = config.get('readPermissions', [])
         self._auto_create: Optional[Dict[str, Union[List[str], str]]] = config.get('autoCreate')
         self._classes: List[bytes] = [cls for cls in config['objectClass']]
         self._list_view = ViewList(config['list'])
@@ -39,38 +40,12 @@ class View:
             if 'auth' in config else None
         )
 
+        self._description = config.get('description', '')
+        self._icon_classes = config.get('iconClasses', '')
+
         self._class_filter = "(&" + "".join("(objectClass={})".format(cls) for cls in config['objectClass']) + ")"
         self._dn_prefix = self._primary_key + "="
         self._dn_suffix = "," + self._dn
-
-        self._user_config = OrderedDict([
-            ('key', self._key),
-            ('primaryKey', self._primary_key),
-            ('permissions', self._permissions),
-            ('title', self._title),
-            ('description', config.get('description', '')),
-            ('iconClasses', config.get('iconClasses', '')),
-        ])
-        if self._list_view is not None:
-            self._user_config['list'] = self._list_view.config
-        if self._detail_view is not None:
-            self._user_config['details'] = self._detail_view.config
-        if self._self_view is not None:
-            self._user_config['self'] = self._self_view.config
-        if self._auth_view is not None:
-            self._user_config['auth'] = self._auth_view.config
-
-        if self._register_view is not None:
-            self._public_config = OrderedDict([
-                ('key', self._key),
-                ('primaryKey', self._primary_key),
-                ('title', self._title),
-                ('iconClasses', config.get('iconClasses', '')),
-                ('description', config.get('description', '')),
-                ('register', self._register_view.config),
-            ])
-        else:
-            self._public_config = None
 
         try:
             self._db.search(self._dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE)
@@ -85,21 +60,57 @@ class View:
                 raise
 
     @property
-    def user_config(self) -> dict:
-        return self._user_config
+    def has_self(self) -> bool:
+        return self._self_view is not None
+
+    def user_config(self, user: Dict[str, Any]) -> dict:
+        user_config = OrderedDict([
+            ('key', self._key),
+            ('primaryKey', self._primary_key),
+            ('permissions', self._permissions),
+            ('readPermissions', self._read_permissions),
+            ('title', self._title),
+            ('description', self._description),
+            ('iconClasses', self._icon_classes),
+        ])
+        has_write_perm = any(user[permission] for permission in self._permissions)
+        has_read_perm = has_write_perm or not self._read_permissions or any(
+            user[permission] for permission in self._read_permissions
+        )
+        if self._list_view is not None and has_read_perm:
+            user_config['list'] = self._list_view.config
+        if self._detail_view is not None and has_write_perm:
+            user_config['details'] = self._detail_view.config
+        if self._self_view is not None:
+            user_config['self'] = self._self_view.config
+        if self._auth_view is not None:
+            user_config['auth'] = self._auth_view.config
+        return user_config
 
     @property
     def public_config(self) -> Optional[dict]:
-        return self._public_config
+        if self._register_view is not None:
+            return OrderedDict([
+                ('key', self._key),
+                ('primaryKey', self._primary_key),
+                ('title', self._title),
+                ('iconClasses', self._icon_classes),
+                ('description', self._description),
+                ('register', self._register_view.config),
+            ])
+        return None
 
     @property
     def key(self):
         return self._key
 
-    def _check_permissions(self, user: Dict[str, Any], primary_key: Optional[str] = None):
-        if 'self' in self._permissions:
-            if primary_key == user[self._primary_key]:
+    def _check_permissions(self, user: Dict[str, Any], writing: bool):
+        if not writing:
+            if not self._read_permissions:
                 return
+            for permission in self._read_permissions:
+                if user[permission]:
+                    return
         for permission in self._permissions:
             if user[permission]:
                 return
@@ -183,22 +194,25 @@ class View:
         self._create(self._register_view, assignments)
 
     def create_detail(self, user: Dict[str, Any], assignments: Dict[str, Dict[str, Any]]):
-        self._check_permissions(user)
+        self._check_permissions(user, writing=True)
         self._create(self._detail_view, assignments)
 
     def get_list(self, user: Dict[str, Any]) -> List[Dict[str, Any]]:
-        self._check_permissions(user)
+        self._check_permissions(user, writing=False)
         return self._list(self._list_view)
 
-    def get_list_entry(self, user: Dict[str, Any], primary_key: str) -> Dict[str, Any]:
-        self._check_permissions(user, primary_key)
+    def get_list_entry_permitted(self, primary_key: str) -> Dict[str, Any]:
         return self._get_entry(self._list_view, primary_key)
 
+    def get_list_entry(self, user: Dict[str, Any], primary_key: str) -> Dict[str, Any]:
+        self._check_permissions(user, writing=False)
+        return self.get_list_entry_permitted(primary_key)
+
     def get_self_entry(self, user: Dict[str, Any]) -> Dict[str, Any]:
-        return self._get_entry(self._list_view, user['primaryKey'])
+        return self._get_entry(self._self_view, user['primaryKey'])
 
     def get_detail_entry(self, user: Dict[str, Any], primary_key: str) -> Dict[str, List[str]]:
-        self._check_permissions(user, primary_key)
+        self._check_permissions(user, writing=False)
         return self._get_entry(self._detail_view, primary_key)
 
     def get_auth_entry(self, primary_key: str) -> Dict[str, Any]:
@@ -208,11 +222,11 @@ class View:
         self._update(self._self_view, user['primaryKey'], assignments)
 
     def update_details(self, user: Dict[str, Any], primary_key: str, assignments: Dict[str, Dict[str, Any]]):
-        self._check_permissions(user, primary_key)
+        self._check_permissions(user, writing=True)
         self._update(self._detail_view, primary_key, assignments)
 
     def delete(self, user: Dict[str, Any], primary_key: str):
-        self._check_permissions(user)
+        self._check_permissions(user, writing=True)
         try:
             self._db.delete(self.get_dn(primary_key))
         except LDAPNoSuchObjectResult:

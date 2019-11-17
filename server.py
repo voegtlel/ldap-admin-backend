@@ -63,7 +63,7 @@ app = falcon.API(
     middleware=[cors.middleware, auth.auth_middleware, RequireJSON(), MaxBody()],
 )
 
-views.register(app)
+views.register(app, auth.relogin)
 auth.register(app)
 
 
@@ -111,5 +111,26 @@ if os.environ.get('TEST_USER_DATABASE') == "1":
                 'userPassword': 'blabla',
             },
             'memberOfGroups': {'add': ['admin', 'superuser']},
+        }
+    )
+
+    users_view.create_detail(
+        user=user,
+        assignments={
+            'user': {
+                'uid': 'test2',
+                'givenName': 'Test',
+                'sn': 'Tester-Two',
+                'mail': 'tester2@localhost.localdomain',
+                'mobile': '0123 456789',
+                'isAdmin': False,
+                'isSuperuser': False,
+                'isNew': False,
+            },
+            'password': {
+                '_enabled': True,
+                'userPassword': 'blabla',
+            },
+            'memberOfGroups': {'add': []},
         }
     )

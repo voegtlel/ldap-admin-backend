@@ -44,7 +44,7 @@ class ViewGroup(ABC):
         ...
 
     @abstractmethod
-    def get(self, fetches: LdapFetch) -> Union[Dict[str, Any], List[str]]:
+    def get(self, fetches: LdapFetch) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Called to get the json value of the field.
 
@@ -173,11 +173,13 @@ class ViewGroupMemberOf(ViewGroup):
         self.foreign_view: 'model.view.View' = cast('model.view.View', None)
         self.field: str = config.get('field', 'memberOf')
         self.foreign_field: str = config.get('foreignField', 'member')
+        self.writable: bool = config.get('writable', True)
 
         self.config.update(OrderedDict([
             ('field', self.field),
             ('foreignView', self.foreign_view_name),
             ('foreignField', self.foreign_field),
+            ('writable', self.writable),
         ]))
 
     def init(self, all_views: Dict[str, 'model.view.View']):
@@ -186,23 +188,38 @@ class ViewGroupMemberOf(ViewGroup):
     def get_fetch(self, fetches: Set[str]):
         fetches.add(self.field)
 
-    def get(self, fetches: LdapFetch) -> List[str]:
+    def get(self, fetches: LdapFetch) -> List[Dict[str, Any]]:
         if self.field not in fetches.values:
             return []
-        return self.foreign_view.try_get_primary_keys([val for val in fetches.values[self.field]])
+        primary_keys = self.foreign_view.try_get_primary_keys([val for val in fetches.values[self.field]])
+        return [self.foreign_view.get_list_entry_permitted(pk) for pk in primary_keys]
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        pass
+        if len(assignments.get('add', [])) > 0 or len(assignments.get('delete', [])) > 0:
+            fetches.add(self.field)
 
     def set_post(self, fetches: LdapFetch, assignments: Dict[str, Any], is_new: bool):
         for add_ref in assignments.get('add', []):
-            self.foreign_view.save_foreign_field(add_ref, {
-                self.foreign_field: [(LdapMods.ADD, [fetches.dn])]
-            })
-        for add_ref in assignments.get('delete', []):
-            self.foreign_view.save_foreign_field(add_ref, {
-                self.foreign_field: [(LdapMods.DELETE, [fetches.dn])]
-            })
+            if not self.writable:
+                raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
+            if self.field not in fetches.values:
+                fetches.values[self.field] = []
+            foreign_dn = self.foreign_view.get_dn(add_ref)
+            if foreign_dn not in fetches.values[self.field]:
+                self.foreign_view.save_foreign_field(add_ref, {
+                    self.foreign_field: [(LdapMods.ADD, [fetches.dn])]
+                })
+                fetches.values[self.field].append(foreign_dn)
+        if self.field in fetches.values:
+            for del_ref in assignments.get('delete', []):
+                if not self.writable:
+                    raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
+                foreign_dn = self.foreign_view.get_dn(del_ref)
+                if foreign_dn in fetches.values[self.field]:
+                    self.foreign_view.save_foreign_field(del_ref, {
+                        self.foreign_field: [(LdapMods.DELETE, [fetches.dn])]
+                    })
+                    fetches.values[self.field].remove(foreign_dn)
 
 
 class ViewGroupMember(ViewGroup):
@@ -212,11 +229,13 @@ class ViewGroupMember(ViewGroup):
         self.foreign_view: 'model.view.View' = cast('model.view.View', None)
         self.field: str = config.get('field', 'member')
         self.foreign_field: str = config.get('foreignField', 'memberOf')
+        self.writable: bool = config.get('writable', True)
 
         self.config.update(OrderedDict([
             ('field', self.field),
             ('foreignView', self.foreign_view_name),
             ('foreignField', self.foreign_field),
+            ('writable', self.writable),
         ]))
 
     def init(self, all_views: Dict[str, 'model.view.View']):
@@ -225,19 +244,24 @@ class ViewGroupMember(ViewGroup):
     def get_fetch(self, fetches: Set[str]):
         fetches.add(self.field)
 
-    def get(self, fetches: LdapFetch) -> List[str]:
+    def get(self, fetches: LdapFetch) -> List[Dict[str, Any]]:
         if self.field not in fetches.values:
             return []
-        return self.foreign_view.try_get_primary_keys([val for val in fetches.values[self.field]])
+        primary_keys = self.foreign_view.try_get_primary_keys([val for val in fetches.values[self.field]])
+        return [self.foreign_view.get_list_entry_permitted(pk) for pk in primary_keys]
 
     def set_fetch(self, fetches: Set[str], assignments: Dict[str, Any]):
-        pass
+        if len(assignments.get('add', [])) > 0 or len(assignments.get('delete', [])) > 0:
+            fetches.add(self.field)
 
     def set(self, fetches: LdapFetch, modlist: LdapModlist, assignments: Dict[str, Any]):
         add_dns = [add_dn for add_dn in self.foreign_view.get_dns(assignments.get('add', []))]
         if add_dns:
+            if not self.writable:
+                raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
             if self.field not in modlist:
                 modlist[self.field] = []
+            add_dns = [add_dn for add_dn in add_dns if add_dn not in modlist[self.field]]
             modlist[self.field].append((LdapMods.ADD, add_dns))
             if self.field in fetches.values:
                 fetches.values[self.field].extend(add_dns)
@@ -245,15 +269,15 @@ class ViewGroupMember(ViewGroup):
                 fetches.values[self.field] = add_dns
         delete_dns = [delete_dn for delete_dn in self.foreign_view.get_dns(assignments.get('delete', []))]
         if delete_dns:
-            if self.field not in modlist:
-                modlist[self.field] = []
-            modlist[self.field].append((LdapMods.DELETE, delete_dns))
+            if not self.writable:
+                raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
             if self.field in fetches.values:
+                if self.field not in modlist:
+                    modlist[self.field] = []
+                delete_dns = [delete_dn for delete_dn in delete_dns if delete_dn in fetches.values[self.field]]
+                modlist[self.field].append((LdapMods.DELETE, delete_dns))
                 for dn in delete_dns:
-                    try:
-                        fetches.values[self.field].remove(dn)
-                    except ValueError:
-                        pass
+                    fetches.values[self.field].remove(dn)
 
     def create(self, fetches: LdapFetch, addlist: LdapAddlist, assignments: Dict[str, Any]):
         add_dns = [add_dn for add_dn in self.foreign_view.get_dns(assignments.get('add', []))]
@@ -261,6 +285,8 @@ class ViewGroupMember(ViewGroup):
             raise falcon.HTTPBadRequest(description="Cannot remove on creation")
         if len(add_dns) == 0:
             return
+        if not self.writable:
+            raise falcon.HTTPBadRequest(description="Cannot create {}".format(self.key))
         if self.field not in addlist:
             addlist[self.field] = add_dns
         else:
