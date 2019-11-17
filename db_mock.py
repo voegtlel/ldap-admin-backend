@@ -25,6 +25,7 @@ class MockConnection:
         self.entries: List[MockResult] = []
 
         self._filter_re = re.compile(r'\(&(\(objectClass=([^)]+)\))+\)')
+        self._email_filter_re = re.compile(r'\(&(\(objectClass=([^)]+)\))+(\(mail=(?P<mail>[^)]+)\))\)')
 
     def _add_member(self, owner_dn: str, member_dn: str):
         member = self.data.get(owner_dn)
@@ -70,14 +71,19 @@ class MockConnection:
     ):
         # ldap3.Connection.search()
         self.entries = []
-        if search_filter == '(objectClass=*)' or self._filter_re.fullmatch(search_filter):
+        mail_filter = self._email_filter_re.fullmatch(search_filter)
+        if search_filter == '(objectClass=*)' or self._filter_re.fullmatch(search_filter) or mail_filter:
             if search_scope == ldap3.BASE:
                 if search_base not in self.data:
                     raise LDAPNoSuchObjectResult(f'Object {search_base} not in data')
                 self.entries.append(MockResult(search_base, self._copy_keys(self.data[search_base], attributes)))
             elif search_scope == ldap3.LEVEL:
+                if mail_filter:
+                    mail = mail_filter.group('mail')
+                else:
+                    mail = None
                 for key, data in self.data.items():
-                    if key.endswith("," + search_base):
+                    if key.endswith("," + search_base) and mail is None or mail in data.get('mail', ()):
                         self.entries.append(MockResult(key, self._copy_keys(data, attributes)))
             else:
                 raise NotImplemented()

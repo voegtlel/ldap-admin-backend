@@ -5,6 +5,7 @@ from typing import Dict, List, Set, Any, Optional, Union
 import falcon
 import ldap3
 import ldap3.utils.dn
+import ldap3.utils.conv
 from ldap3.core.exceptions import LDAPNoSuchObjectResult, LDAPExceptionError
 
 from model.db import DatabaseFactory, FalconLdapError, LdapAddlist, LdapModlist, LdapFetch
@@ -46,6 +47,19 @@ class View:
         self._class_filter = "(&" + "".join("(objectClass={})".format(cls) for cls in config['objectClass']) + ")"
         self._dn_prefix = self._primary_key + "="
         self._dn_suffix = "," + self._dn
+
+        self._mail_filter: Optional[str] = None
+
+        if self._auth_view is not None:
+            fetch = set()
+            for field in self._auth_view.fields:
+                if field.key == 'mail':
+                    field.get_fetch(fetch)
+            if len(fetch) == 1:
+                mail_field = fetch.pop()
+                self._mail_filter = (
+                    "(&" + "".join("(objectClass={})".format(cls) for cls in config['objectClass']) + f"({mail_field}={{}}))"
+                )
 
         try:
             self._db.search(self._dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE)
@@ -189,6 +203,21 @@ class View:
             except LDAPExceptionError as e:
                 raise FalconLdapError(e)
         view.set_post(fetched, assignments, False)
+
+    def resolve_primary_key_by_mail(self, mail: str) -> str:
+        if self._mail_filter is None:
+            raise ValueError("'user.auth' view does not have 'mail'")
+        try:
+            mail_filter = self._mail_filter.format(ldap3.utils.conv.escape_filter_chars(mail))
+            self._db.search(self._dn, mail_filter, search_scope=ldap3.LEVEL, attributes=[self._primary_key])
+            try:
+                return self._db.entries[0].entry_attributes_as_dict.get(self._primary_key)[0]
+            except (KeyError, IndexError):
+                raise falcon.HTTPNotFound()
+        except LDAPNoSuchObjectResult:
+            raise falcon.HTTPNotFound()
+        except LDAPExceptionError as e:
+            raise FalconLdapError(e)
 
     def create_register(self, assignments: Dict[str, Dict[str, Any]]):
         self._create(self._register_view, assignments)

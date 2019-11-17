@@ -538,6 +538,7 @@ auth:
   headerPrefix: Bearer
   #expiration: 60*60*24*30
   expiration: 2592000
+  autoLoginExpiration: 3600
   view: users
 
   antiSpam:
