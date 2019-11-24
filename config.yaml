@@ -105,6 +105,17 @@ views:
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
             formatMessage: "+49 151 1234567"
             required: true
+          language:
+            type: text
+            field: preferredLanguage
+            title: "Language"
+            format: '^en|de$'
+            formatMessage: "en|de"
+            enum:
+              - title: "English"
+                value: "en"
+              - title: "Deutsch"
+                value: "de"
           isAdmin:
             type: isMemberOf
             title: "Admin"
@@ -187,6 +198,17 @@ views:
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
             formatMessage: "+49 151 1234567"
             required: true
+          language:
+            type: text
+            field: preferredLanguage
+            title: "Language"
+            format: '^en|de$'
+            formatMessage: "en|de"
+            enum:
+              - title: "English"
+                value: "en"
+              - title: "Deutsch"
+                value: "de"
       password:
         type: fields
         title: "Password"
@@ -266,6 +288,15 @@ views:
             format: '^((\+[0-9]{2}[- /\.]?([1-9][0-9]{2,5}))|(0[0-9]{3,4}))[-\s\./0-9]*[0-9]$'
             formatMessage: "+49 151 1234567"
             required: true
+          language:
+            type: text
+            field: preferredLanguage
+            title: "Language"
+            enum:
+              - title: "English"
+                value: "en"
+              - title: "Deutsch"
+                value: "de"
           new:
             type: initial
             title: "Assign new user group"
@@ -314,6 +345,16 @@ views:
         type: text
         field: mail
         title: "E-Mail"
+      # Used for language
+      language:
+        type: text
+        field: preferredLanguage
+        title: "Language"
+        enum:
+          - title: "English"
+            value: "en"
+          - title: "Deutsch"
+            value: "de"
       # Used for authentication security
       timestamp:
         type: datetime
@@ -549,3 +590,13 @@ auth:
         answer: '^[Mm]athieu'
 
 allowOrigins: ['http://localhost:4200', 'http://127.0.0.1:4200']
+
+mail:
+  ssl: false
+  starttls: false
+  host: localhost
+  port: 1025
+
+  sender: 'test@localhost'
+  siteBaseUrl: 'http://localhost:4200'
+  siteName: "JDAV User Management"

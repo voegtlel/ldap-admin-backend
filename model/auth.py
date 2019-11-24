@@ -1,5 +1,6 @@
 import logging
-from typing import Dict, Any
+from datetime import timedelta, datetime
+from typing import Dict, Any, Tuple
 
 import falcon
 from falcon_auth import FalconAuthMiddleware, JWTAuthBackend
@@ -7,6 +8,7 @@ from ldap3.core.exceptions import LDAPCommunicationError, LDAPInvalidCredentials
 
 from model.anti_spam import AntiSpam
 from model.db import DatabaseFactory, FalconLdapError
+from model.mailer import Mailer
 from model.view import View
 
 
@@ -85,25 +87,35 @@ class RegisterConfigApi:
         app.add_route('/register-config', self)
 
 
-class RequestPasswordApi:
+class MailLoginApi:
     auth = {
         'auth_disabled': True
     }
 
-    def __init__(self, auth: 'Auth'):
+    def __init__(self, auth: 'Auth', mailer: Mailer):
         self.authenticator = auth
+        self.mailer = mailer
 
     def on_post(self, req: falcon.Request, resp: falcon.Response):
         search_email = req.media['email']
-        url = req.referer.replace('request-password', 'token-login')
         user_id = self.authenticator.view.resolve_primary_key_by_mail(search_email)
-        token = self.authenticator.auto_login(user_id)['token']
+        token_data, user_data = self.authenticator.auto_login(user_id)
 
-        logging.info(f"Automatic login url: {url}?token={token}")
+        valid_duration = timedelta(seconds=self.authenticator.auto_login_expiration)
+        valid_until = datetime.now() + valid_duration
+
+        self.mailer.send_mail(user_data.get('language', 'en'), 'auto_login', user_data['mail'], {
+            'display_name': user_data['displayName'],
+            'mail': user_data['mail'],
+            'login_link': f"auth/token-login?token={token_data['token']}",
+            'valid_duration': valid_duration,
+            'valid_until': valid_until,
+        })
+
         resp.status = falcon.HTTP_200
 
     def register(self, app: falcon.API):
-        app.add_route('/request-password', self)
+        app.add_route('/mail-login', self)
 
 
 class Auth:
@@ -146,10 +158,10 @@ class Auth:
                 raise falcon.HTTPUnauthorized()
         return auth_entry
 
-    def auto_login(self, primary_key: str) -> Dict[str, Any]:
+    def auto_login(self, primary_key: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         auth_entry = self.view.get_auth_entry(primary_key)
 
-        return {'token': self.auto_auth_backend.get_auth_token(auth_entry)}
+        return {'token': self.auto_auth_backend.get_auth_token(auth_entry)}, auth_entry
 
     def relogin(self, primary_key: str) -> Dict[str, Any]:
         auth_entry = self.view.get_auth_entry(primary_key)
@@ -170,10 +182,10 @@ class Auth:
 
         return self.relogin(primary_key)
 
-    def register(self, app: falcon.API):
+    def register(self, app: falcon.API, mailer: Mailer):
         JwtAuthApi(self).register(app)
         AuthUserApi().register(app)
         RegisterUserApi(self.anti_spam, self.view).register(app)
         self.anti_spam.register(app)
         RegisterConfigApi(self.view).register(app)
-        RequestPasswordApi(self).register(app)
+        MailLoginApi(self, mailer).register(app)

@@ -8,6 +8,7 @@ from falcon_cors import CORS
 from config import config
 from model.auth import Auth
 from model.db import DatabaseFactory
+from model.mailer import Mailer
 from model.view_api import ViewsApi
 
 cors = CORS(
@@ -62,9 +63,10 @@ auth = Auth(views.views, db_factory, config['auth'])
 app = falcon.API(
     middleware=[cors.middleware, auth.auth_middleware, RequireJSON(), MaxBody()],
 )
+mailer = Mailer(config['mail'])
 
 views.register(app, auth.relogin)
-auth.register(app)
+auth.register(app, mailer)
 
 
 if os.environ.get('TEST_USER_DATABASE') == "1":

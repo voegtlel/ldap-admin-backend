@@ -135,10 +135,17 @@ class ViewFieldText(ViewField):
         self.format: Pattern = regex.compile(config.get('format', ''), regex.UNICODE)
         self.formatMessage: str = config.get('formatMessage', config.get('format', ''))
 
+        self.enum = config.get('enum')
+        self.enum_values = [value['value'] for value in self.enum] if self.enum is not None else None
+
         self.config.update(OrderedDict([
             ('field', self.field),
             ('format', config.get('formatJs', config.get('format', ''))),
             ('formatMessage', self.formatMessage),
+            ('enum', [
+                OrderedDict([('title', value['title']), ('value', value['value'])])
+                for value in self.enum
+            ] if self.enum is not None else None),
         ]))
 
     def get_fetch(self, fetches: Set[str]):
@@ -173,6 +180,11 @@ class ViewFieldText(ViewField):
             ))
 
         value = assignments[self.key]
+        if value and self.enum_values is not None and value not in self.enum_values:
+            raise falcon.HTTPBadRequest(
+                description="Value for {} must be one of: {}".format(self.key, ", ".join(self.enum_values))
+            )
+
         if not value:
             if self.required:
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -204,6 +216,10 @@ class ViewFieldText(ViewField):
             raise falcon.HTTPBadRequest(description="Cannot modify value")
         if not value and self.required:
             raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
+        if value and self.enum_values is not None and value not in self.enum_values:
+            raise falcon.HTTPBadRequest(
+                description="Value for {} must be one of: {}".format(self.key, ", ".join(self.enum_values))
+            )
         addlist[self.field] = [value]
         fetches.values[self.field] = [value]
 
