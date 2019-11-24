@@ -8,6 +8,7 @@ import dateutil.parser
 import falcon
 import passlib.hash
 import passlib.pwd
+import pwnedpasswords
 import regex
 
 import model
@@ -133,7 +134,7 @@ class ViewFieldText(ViewField):
 
         self.field: str = config.get('field', self.key)
         self.format: Pattern = regex.compile(config.get('format', ''), regex.UNICODE)
-        self.formatMessage: str = config.get('formatMessage', config.get('format', ''))
+        self.format_message: str = config.get('formatMessage', config.get('format', ''))
 
         self.enum = config.get('enum')
         self.enum_values = [value['value'] for value in self.enum] if self.enum is not None else None
@@ -141,7 +142,7 @@ class ViewFieldText(ViewField):
         self.config.update(OrderedDict([
             ('field', self.field),
             ('format', config.get('formatJs', config.get('format', ''))),
-            ('formatMessage', self.formatMessage),
+            ('formatMessage', self.format_message),
             ('enum', [
                 OrderedDict([('title', value['title']), ('value', value['value'])])
                 for value in self.enum
@@ -176,7 +177,7 @@ class ViewFieldText(ViewField):
 
         if not self.format.fullmatch(assignments[self.key]):
             raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
-                assignments[self.key], self.key, self.formatMessage
+                assignments[self.key], self.key, self.format_message
             ))
 
         value = assignments[self.key]
@@ -322,6 +323,7 @@ class ViewFieldPassword(ViewField):
         self.field: str = config.get('field', self.key)
         self.auto_generate: bool = config.get('autoGenerate', False)
         self.hashing: Optional[Callable[[str], str]] = getattr(passlib.hash, 'ldap_' + config['hashing']).hash
+        self.pwned_password_check: bool = config.get('pwnedPasswordCheck', False)
 
         self.config.update(OrderedDict([
             ('field', self.field),
@@ -361,6 +363,11 @@ class ViewFieldPassword(ViewField):
             str_value = passlib.pwd.genword('secure')
         else:
             str_value = assignments[self.key]
+
+        if self.pwned_password_check:
+            if pwnedpasswords.check(str_value, plain_text=True):
+                raise falcon.HTTPBadRequest(description="Password is in list of leaked passwords, not accepted")
+
         value = self.hashing(str_value)
         if not value:
             if self.required and self._is_enabled(assignments):
@@ -386,6 +393,10 @@ class ViewFieldPassword(ViewField):
             str_value = passlib.pwd.genword('secure')
         else:
             str_value = assignments[self.key]
+
+        if self.pwned_password_check:
+            if pwnedpasswords.check(str_value, plain_text=True):
+                raise falcon.HTTPBadRequest(description="Password is in list of leaked passwords, not accepted")
 
         value = self.hashing(str_value)
         if self.field in fetches.values:

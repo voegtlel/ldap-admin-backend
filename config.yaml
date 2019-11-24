@@ -116,6 +116,12 @@ views:
                 value: "en"
               - title: "Deutsch"
                 value: "de"
+          cardId:
+            type: text
+            title: "Card ID"
+            field: employeeNumber
+            format: '^([0-9a-fA-F]*)$'
+            formatMessage: "0-9, a-f"
           isAdmin:
             type: isMemberOf
             title: "Admin"
@@ -145,6 +151,7 @@ views:
             verify: true
             type: password
             hashing: salted_sha1
+            pwnedPasswordCheck: true
             required: true
       memberOfGroups:
         type: memberOf
@@ -209,6 +216,12 @@ views:
                 value: "en"
               - title: "Deutsch"
                 value: "de"
+          cardId:
+            type: text
+            title: "Card ID"
+            field: employeeNumber
+            format: '^([0-9a-fA-F]*)$'
+            formatMessage: "0-9, a-f"
       password:
         type: fields
         title: "Password"
@@ -224,6 +237,7 @@ views:
             verify: true
             type: password
             hashing: salted_sha1
+            pwnedPasswordCheck: true
             required: true
       memberOfGroups:
         type: memberOf
@@ -326,6 +340,7 @@ views:
             verify: true
             type: password
             hashing: salted_sha1
+            pwnedPasswordCheck: true
             required: true
 
     # These properties are fetched for the authenticated user.
