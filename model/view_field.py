@@ -175,16 +175,16 @@ class ViewFieldText(ViewField):
         if not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
 
-        if not self.format.fullmatch(assignments[self.key]):
-            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
-                assignments[self.key], self.key, self.format_message
-            ))
-
         value = assignments[self.key]
-        if value and self.enum_values is not None and value not in self.enum_values:
-            raise falcon.HTTPBadRequest(
-                description="Value for {} must be one of: {}".format(self.key, ", ".join(self.enum_values))
-            )
+        if value:
+            if not self.format.fullmatch(value):
+                raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
+                    assignments[self.key], self.key, self.format_message
+                ))
+            if self.enum_values is not None and value not in self.enum_values:
+                raise falcon.HTTPBadRequest(
+                    description="Value for {} must be one of: {}".format(self.key, ", ".join(self.enum_values))
+                )
 
         if not value:
             if self.required:
@@ -207,12 +207,16 @@ class ViewFieldText(ViewField):
         if not self.creatable:
             raise falcon.HTTPBadRequest(description="Cannot create {}".format(self.key))
 
-        if not self.format.fullmatch(assignments[self.key]):
-            raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
-                assignments[self.key], self.key, self.format
-            ))
-
         value = assignments[self.key]
+        if value:
+            if not self.format.fullmatch(value):
+                raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
+                    assignments[self.key], self.key, self.format_message
+                ))
+            if self.enum_values is not None and value not in self.enum_values:
+                raise falcon.HTTPBadRequest(
+                    description="Value for {} must be one of: {}".format(self.key, ", ".join(self.enum_values))
+                )
         if self.field in fetches.values:
             raise falcon.HTTPBadRequest(description="Cannot modify value")
         if not value and self.required:
@@ -273,12 +277,11 @@ class ViewFieldDateTime(ViewField):
         if not self.writable:
             raise falcon.HTTPBadRequest(description="Cannot write {}".format(self.key))
 
-        if not self.format.fullmatch(assignments[self.key]):
+        value = assignments[self.key]
+        if value and not self.format.fullmatch(value):
             raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting ISO 8601".format(
                 assignments[self.key], self.key,
             ))
-
-        value = assignments[self.key]
         if not value:
             if self.required:
                 raise falcon.HTTPBadRequest(description="{} is required".format(self.key))
@@ -300,12 +303,11 @@ class ViewFieldDateTime(ViewField):
         if not self.creatable:
             raise falcon.HTTPBadRequest(description="Cannot create {}".format(self.key))
 
-        if not self.format.fullmatch(assignments[self.key]):
+        value = assignments[self.key]
+        if value and not self.format.fullmatch(value):
             raise falcon.HTTPBadRequest(description="Invalid value {} for {}, expecting {}".format(
                 assignments[self.key], self.key, self.format
             ))
-
-        value = assignments[self.key]
         if self.field in fetches.values:
             raise falcon.HTTPBadRequest(description="Cannot modify value")
         if not value and self.required:

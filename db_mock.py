@@ -18,9 +18,11 @@ class MockResult:
 
 
 class MockConnection:
-    def __init__(self, user: str, data: Dict[str, Dict[str, List[ValueType]]]):
+    def __init__(self, user: str, data: Dict[str, Dict[str, List[ValueType]]], mod_timestamp: datetime = None):
         self.user = user
         self.data = data
+
+        self.mod_timestamp = mod_timestamp
 
         self.entries: List[MockResult] = []
 
@@ -63,7 +65,10 @@ class MockConnection:
         if 'member' in obj:
             for member_dn in obj['member']:
                 self._add_member(member_dn, dn)
-        obj['modifyTimestamp'] = [datetime.now()]
+        if self.mod_timestamp is None:
+            obj['modifyTimestamp'] = [datetime.now()]
+        else:
+            obj['modifyTimestamp'] = [self.mod_timestamp]
         self.data[dn] = obj
 
     def search(
@@ -107,7 +112,7 @@ class MockConnection:
                             self._add_member(member_dn, dn)
                 elif change == LdapMods.DELETE:
                     if data is not None:
-                        if value is None:
+                        if not value:
                             if key == 'member':
                                 for member_dn in entry[key]:
                                     self._remove_member(member_dn, dn)
@@ -135,7 +140,10 @@ class MockConnection:
                         entry[key] = data
                     else:
                         data[0] += 1
-        entry['modifyTimestamp'] = [datetime.now()]
+        if self.mod_timestamp is None:
+            entry['modifyTimestamp'] = [datetime.now()]
+        else:
+            entry['modifyTimestamp'] = [self.mod_timestamp]
 
     def delete(self, dn: str):
         # ldap3.Connection.delete()
@@ -146,7 +154,7 @@ class MockConnection:
 
 
 class MockDatabaseFactory:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, mod_timestamp: datetime = None):
         self.data: Dict[str, Dict[str, List[ValueType]]] = {}
 
         self.prefix: str = config['prefix']
@@ -155,6 +163,7 @@ class MockDatabaseFactory:
         self._connection = MockConnection(
             user=config['bindDn'],
             data=self.data,
+            mod_timestamp=mod_timestamp,
         )
 
     def connect(self, user: str, password: str) -> MockConnection:

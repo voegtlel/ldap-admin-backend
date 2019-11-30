@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import logging
 import os
+from datetime import datetime
 
 import falcon
 from falcon_cors import CORS
@@ -50,7 +51,7 @@ logging.basicConfig(level=logging.INFO)
 if os.environ.get('TEST_USER_DATABASE') == "1":
     from db_mock import MockDatabaseFactory
 
-    db_factory = MockDatabaseFactory(config['ldap'])
+    db_factory = MockDatabaseFactory(config['ldap'], mod_timestamp=datetime(2019, 1, 1))
 
     auth_view = config['views'][config['auth']['view']]
     view_prefix = auth_view['dn'] + "," + config['ldap']['prefix']
@@ -110,7 +111,7 @@ if os.environ.get('TEST_USER_DATABASE') == "1":
             },
             'password': {
                 '_enabled': True,
-                'userPassword': 'blabla',
+                'userPassword': 'blablubbbla',
             },
             'memberOfGroups': {'add': ['admin', 'superuser']},
         }
@@ -131,7 +132,7 @@ if os.environ.get('TEST_USER_DATABASE') == "1":
             },
             'password': {
                 '_enabled': True,
-                'userPassword': 'blabla',
+                'userPassword': 'blablubbbla',
             },
             'memberOfGroups': {'add': []},
         }

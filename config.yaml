@@ -110,7 +110,7 @@ views:
             field: preferredLanguage
             title: "Language"
             format: '^en|de$'
-            formatMessage: "en|de"
+            formatMessage: "en, de"
             enum:
               - title: "English"
                 value: "en"
@@ -120,7 +120,7 @@ views:
             type: text
             title: "Card ID"
             field: employeeNumber
-            format: '^([0-9a-fA-F]*)$'
+            format: '^[0-9a-fA-F]*$'
             formatMessage: "0-9, a-f"
           isAdmin:
             type: isMemberOf
@@ -220,7 +220,7 @@ views:
             type: text
             title: "Card ID"
             field: employeeNumber
-            format: '^([0-9a-fA-F]*)$'
+            format: '^[0-9a-fA-F]*$'
             formatMessage: "0-9, a-f"
       password:
         type: fields
