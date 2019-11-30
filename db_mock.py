@@ -18,13 +18,16 @@ class MockResult:
 
 
 class MockConnection:
-    def __init__(self, user: str, data: Dict[str, Dict[str, List[ValueType]]]):
+    def __init__(self, user: str, data: Dict[str, Dict[str, List[ValueType]]], mod_timestamp: datetime = None):
         self.user = user
         self.data = data
+
+        self.mod_timestamp = mod_timestamp
 
         self.entries: List[MockResult] = []
 
         self._filter_re = re.compile(r'\(&(\(objectClass=([^)]+)\))+\)')
+        self._email_filter_re = re.compile(r'\(&(\(objectClass=([^)]+)\))+(\(mail=(?P<mail>[^)]+)\))\)')
 
     def _add_member(self, owner_dn: str, member_dn: str):
         member = self.data.get(owner_dn)
@@ -62,7 +65,10 @@ class MockConnection:
         if 'member' in obj:
             for member_dn in obj['member']:
                 self._add_member(member_dn, dn)
-        obj['modifyTimestamp'] = [datetime.now()]
+        if self.mod_timestamp is None:
+            obj['modifyTimestamp'] = [datetime.now()]
+        else:
+            obj['modifyTimestamp'] = [self.mod_timestamp]
         self.data[dn] = obj
 
     def search(
@@ -70,14 +76,19 @@ class MockConnection:
     ):
         # ldap3.Connection.search()
         self.entries = []
-        if search_filter == '(objectClass=*)' or self._filter_re.fullmatch(search_filter):
+        mail_filter = self._email_filter_re.fullmatch(search_filter)
+        if search_filter == '(objectClass=*)' or self._filter_re.fullmatch(search_filter) or mail_filter:
             if search_scope == ldap3.BASE:
                 if search_base not in self.data:
                     raise LDAPNoSuchObjectResult(f'Object {search_base} not in data')
                 self.entries.append(MockResult(search_base, self._copy_keys(self.data[search_base], attributes)))
             elif search_scope == ldap3.LEVEL:
+                if mail_filter:
+                    mail = mail_filter.group('mail')
+                else:
+                    mail = None
                 for key, data in self.data.items():
-                    if key.endswith("," + search_base):
+                    if key.endswith("," + search_base) and mail is None or mail in data.get('mail', ()):
                         self.entries.append(MockResult(key, self._copy_keys(data, attributes)))
             else:
                 raise NotImplemented()
@@ -85,7 +96,7 @@ class MockConnection:
             raise NotImplemented()
 
     def modify(self, dn: str, changes: LdapModlist):
-        #ldap3.Connection.modify()
+        # ldap3.Connection.modify()
         entry = self.data[dn]
         for key, item_changes in changes.items():
             data = entry.get(key)
@@ -101,7 +112,7 @@ class MockConnection:
                             self._add_member(member_dn, dn)
                 elif change == LdapMods.DELETE:
                     if data is not None:
-                        if value is None:
+                        if not value:
                             if key == 'member':
                                 for member_dn in entry[key]:
                                     self._remove_member(member_dn, dn)
@@ -129,9 +140,13 @@ class MockConnection:
                         entry[key] = data
                     else:
                         data[0] += 1
-        entry['modifyTimestamp'] = [datetime.now()]
+        if self.mod_timestamp is None:
+            entry['modifyTimestamp'] = [datetime.now()]
+        else:
+            entry['modifyTimestamp'] = [self.mod_timestamp]
 
     def delete(self, dn: str):
+        # ldap3.Connection.delete()
         if 'member' in self.data[dn]:
             for member_dn in self.data[dn]['member']:
                 self._remove_member(member_dn, dn)
@@ -139,7 +154,7 @@ class MockConnection:
 
 
 class MockDatabaseFactory:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, mod_timestamp: datetime = None):
         self.data: Dict[str, Dict[str, List[ValueType]]] = {}
 
         self.prefix: str = config['prefix']
@@ -148,6 +163,7 @@ class MockDatabaseFactory:
         self._connection = MockConnection(
             user=config['bindDn'],
             data=self.data,
+            mod_timestamp=mod_timestamp,
         )
 
     def connect(self, user: str, password: str) -> MockConnection:

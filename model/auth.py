@@ -1,5 +1,6 @@
 import logging
-from typing import Dict
+from datetime import timedelta, datetime
+from typing import Dict, Any, Tuple
 
 import falcon
 from falcon_auth import FalconAuthMiddleware, JWTAuthBackend
@@ -7,6 +8,7 @@ from ldap3.core.exceptions import LDAPCommunicationError, LDAPInvalidCredentials
 
 from model.anti_spam import AntiSpam
 from model.db import DatabaseFactory, FalconLdapError
+from model.mailer import Mailer
 from model.view import View
 
 
@@ -21,14 +23,8 @@ class JwtAuthApi:
     def on_post(self, req: falcon.Request, resp: falcon.Response):
         content = req.media
 
-        userdata, token = self.authenticator.login(content['username'], content['password'])
-
+        resp.media = self.authenticator.login(content['username'], content['password'])
         resp.status = falcon.HTTP_200
-        resp.media = {
-            'token': token,
-            'user': userdata
-        }
-        logging.info("Authenticated", userdata)
 
     def register(self, app: falcon.API):
         app.add_route('/jwt-auth', self)
@@ -75,33 +71,6 @@ class RegisterUserApi:
         app.add_route('/register', self)
 
 
-class SelfUserApi:
-    """Modify self user."""
-
-    def __init__(self, view: View):
-        self.view = view
-
-    def on_get(self, req: falcon.Request, resp: falcon.Response):
-        user = req.context.get('user')
-        if user is None:
-            raise falcon.HTTPForbidden()
-
-        resp.media = self.view.get_self_entry(user)
-        resp.status = falcon.HTTP_200
-
-    def on_patch(self, req: falcon.Request, resp: falcon.Response):
-        """Modify self user."""
-        user = req.context.get('user')
-        if user is None:
-            raise falcon.HTTPForbidden()
-
-        self.view.update_self(user, req.media)
-        resp.status = falcon.HTTP_200
-
-    def register(self, app: falcon.API):
-        app.add_route('/user', self)
-
-
 class RegisterConfigApi:
     auth = {
         'auth_disabled': True
@@ -118,11 +87,43 @@ class RegisterConfigApi:
         app.add_route('/register-config', self)
 
 
+class MailLoginApi:
+    auth = {
+        'auth_disabled': True
+    }
+
+    def __init__(self, auth: 'Auth', mailer: Mailer):
+        self.authenticator = auth
+        self.mailer = mailer
+
+    def on_post(self, req: falcon.Request, resp: falcon.Response):
+        search_email = req.media['email']
+        user_id = self.authenticator.view.resolve_primary_key_by_mail(search_email)
+        token_data, user_data = self.authenticator.auto_login(user_id)
+
+        valid_duration = timedelta(seconds=self.authenticator.auto_login_expiration)
+        valid_until = datetime.now() + valid_duration
+
+        self.mailer.send_mail(user_data.get('language', 'en'), 'auto_login', user_data['mail'], {
+            'display_name': user_data['displayName'],
+            'mail': user_data['mail'],
+            'login_link': f"auth/token-login?token={token_data['token']}",
+            'valid_duration': valid_duration,
+            'valid_until': valid_until,
+        })
+
+        resp.status = falcon.HTTP_200
+
+    def register(self, app: falcon.API):
+        app.add_route('/mail-login', self)
+
+
 class Auth:
     def __init__(self, all_views: Dict[str, View], db_factory: DatabaseFactory, config: dict):
         self.secret_key = config['secretKey']
         self.header_prefix = config['headerPrefix']
         self.expiration = config['expiration']
+        self.auto_login_expiration = config['autoLoginExpiration']
         self.view = all_views[config['view']]
         self.db_factory = db_factory
 
@@ -135,6 +136,13 @@ class Auth:
             expiration_delta=self.expiration
         )
 
+        self.auto_auth_backend = JWTAuthBackend(
+            self.user_loader,
+            secret_key=self.secret_key,
+            auth_header_prefix=self.header_prefix,
+            expiration_delta=self.auto_login_expiration
+        )
+
         self.auth_middleware = FalconAuthMiddleware(
             self.auth_backend,
             exempt_routes=['/jwt-auth'],
@@ -142,7 +150,7 @@ class Auth:
         )
 
     def user_loader(self, jwt_payload):
-        primary_key = jwt_payload['user']['uid']
+        primary_key = jwt_payload['user']['primaryKey']
         assert isinstance(primary_key, str)
         auth_entry = self.view.get_auth_entry(primary_key)
         if 'timestamp' in auth_entry:
@@ -150,7 +158,17 @@ class Auth:
                 raise falcon.HTTPUnauthorized()
         return auth_entry
 
-    def login(self, primary_key: str, password: str):
+    def auto_login(self, primary_key: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        auth_entry = self.view.get_auth_entry(primary_key)
+
+        return {'token': self.auto_auth_backend.get_auth_token(auth_entry)}, auth_entry
+
+    def relogin(self, primary_key: str) -> Dict[str, Any]:
+        auth_entry = self.view.get_auth_entry(primary_key)
+
+        return {'token': self.auth_backend.get_auth_token(auth_entry)}
+
+    def login(self, primary_key: str, password: str) -> Dict[str, Any]:
         try:
             if primary_key is None:
                 raise ValueError("primary_key must not be None")
@@ -162,17 +180,12 @@ class Auth:
         except LDAPCommunicationError as e:
             raise FalconLdapError(e)
 
-        auth_entry = self.view.get_auth_entry(primary_key)
+        return self.relogin(primary_key)
 
-        jwt_payload = {'uid': primary_key}
-        if 'timestamp' in auth_entry:
-            jwt_payload['timestamp'] = auth_entry['timestamp']
-        return auth_entry, self.auth_backend.get_auth_token(jwt_payload)
-
-    def register(self, app: falcon.API):
+    def register(self, app: falcon.API, mailer: Mailer):
         JwtAuthApi(self).register(app)
         AuthUserApi().register(app)
         RegisterUserApi(self.anti_spam, self.view).register(app)
-        SelfUserApi(self.view).register(app)
         self.anti_spam.register(app)
         RegisterConfigApi(self.view).register(app)
+        MailLoginApi(self, mailer).register(app)

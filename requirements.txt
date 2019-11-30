@@ -6,3 +6,5 @@ regex
 passlib
 oyaml
 python-dateutil
+jinja2
+pwnedpasswords

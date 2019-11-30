@@ -1,0 +1,13 @@
+Auto Login
+<html>
+  <body>
+    <p>Hello {{display_name}},</p>
+    <p></p>
+    <p>click the following link to login to {{site_name}}: <a href="{{site_base_url}}/{{login_link}}">Login</a></p>
+    <p>This link is valid until {{valid_until.strftime('%Y-%m-%d %H:%M')}}.</p>
+    <p>Once logged in, you can change your password.</p>
+    <p></p>
+    <p>Best,</p>
+    <p>Your Admins</p>
+  </body>
+</html>

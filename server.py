@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import logging
 import os
+from datetime import datetime
 
 import falcon
 from falcon_cors import CORS
@@ -8,6 +9,7 @@ from falcon_cors import CORS
 from config import config
 from model.auth import Auth
 from model.db import DatabaseFactory
+from model.mailer import Mailer
 from model.view_api import ViewsApi
 
 cors = CORS(
@@ -49,7 +51,7 @@ logging.basicConfig(level=logging.INFO)
 if os.environ.get('TEST_USER_DATABASE') == "1":
     from db_mock import MockDatabaseFactory
 
-    db_factory = MockDatabaseFactory(config['ldap'])
+    db_factory = MockDatabaseFactory(config['ldap'], mod_timestamp=datetime(2019, 1, 1))
 
     auth_view = config['views'][config['auth']['view']]
     view_prefix = auth_view['dn'] + "," + config['ldap']['prefix']
@@ -62,9 +64,10 @@ auth = Auth(views.views, db_factory, config['auth'])
 app = falcon.API(
     middleware=[cors.middleware, auth.auth_middleware, RequireJSON(), MaxBody()],
 )
+mailer = Mailer(config['mail'])
 
-views.register(app)
-auth.register(app)
+views.register(app, auth.relogin)
+auth.register(app, mailer)
 
 
 if os.environ.get('TEST_USER_DATABASE') == "1":
@@ -107,8 +110,30 @@ if os.environ.get('TEST_USER_DATABASE') == "1":
                 'isNew': False,
             },
             'password': {
-                'userPassword': 'blabla',
+                '_enabled': True,
+                'userPassword': 'blablubbbla',
             },
             'memberOfGroups': {'add': ['admin', 'superuser']},
+        }
+    )
+
+    users_view.create_detail(
+        user=user,
+        assignments={
+            'user': {
+                'uid': 'test2',
+                'givenName': 'Test',
+                'sn': 'Tester-Two',
+                'mail': 'tester2@localhost.localdomain',
+                'mobile': '0123 456789',
+                'isAdmin': False,
+                'isSuperuser': False,
+                'isNew': False,
+            },
+            'password': {
+                '_enabled': True,
+                'userPassword': 'blablubbbla',
+            },
+            'memberOfGroups': {'add': []},
         }
     )
