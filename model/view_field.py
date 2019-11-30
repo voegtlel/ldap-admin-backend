@@ -25,6 +25,7 @@ class ViewField(ABC):
         self.creatable = config.get('creatable', True)
         self.readable = config.get('readable', True)
         self.writable = config.get('writable', True)
+        self.hidden = config.get('hidden', False)
 
         self.config = OrderedDict([
             ('key', self.key),
@@ -34,6 +35,7 @@ class ViewField(ABC):
             ('creatable', self.creatable),
             ('readable', self.readable),
             ('writable', self.writable),
+            ('hidden', self.hidden),
         ])
     
     def _is_enabled(self, values: Dict[str, Any]):

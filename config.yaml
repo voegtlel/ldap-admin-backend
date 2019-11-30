@@ -222,6 +222,7 @@ views:
             field: employeeNumber
             format: '^[0-9a-fA-F]*$'
             formatMessage: "0-9, a-f"
+            hidden: true
       password:
         type: fields
         title: "Password"
