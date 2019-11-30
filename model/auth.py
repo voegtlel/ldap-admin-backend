@@ -30,6 +30,28 @@ class JwtAuthApi:
         app.add_route('/jwt-auth', self)
 
 
+class JwtRefreshApi:
+    def __init__(self, auth: 'Auth'):
+        self.authenticator = auth
+
+    def on_post(self, req: falcon.Request, resp: falcon.Response):
+        user = req.context.get('user')
+        if user is None:
+            raise falcon.HTTPForbidden()
+
+        userdata, token = self.authenticator.create_token(user)
+
+        resp.status = falcon.HTTP_200
+        resp.media = {
+            'token': token,
+            'user': userdata.to_dict()
+        }
+        logging.info("Refreshed", userdata)
+
+    def register(self, app: falcon.API):
+        app.add_route('/jwt-refresh', self)
+
+
 class AuthUserApi:
     """Gets the currently authenticated user"""
     def on_get(self, req: falcon.Request, resp: falcon.Response):
@@ -166,6 +188,9 @@ class Auth:
     def relogin(self, primary_key: str) -> Dict[str, Any]:
         auth_entry = self.view.get_auth_entry(primary_key)
 
+        return self.create_token(auth_entry)
+
+    def create_token(self, auth_entry: Dict[str, Any]):
         return {'token': self.auth_backend.get_auth_token(auth_entry)}
 
     def login(self, primary_key: str, password: str) -> Dict[str, Any]:
@@ -184,6 +209,7 @@ class Auth:
 
     def register(self, app: falcon.API, mailer: Mailer):
         JwtAuthApi(self).register(app)
+        JwtRefreshApi(self).register(app)
         AuthUserApi().register(app)
         RegisterUserApi(self.anti_spam, self.view).register(app)
         self.anti_spam.register(app)
